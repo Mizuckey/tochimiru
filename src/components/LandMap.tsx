@@ -20,9 +20,11 @@ import type { HazardLayerId, LandListing } from "@/types/land";
 import { HazardLayerToggle } from "@/components/HazardLayerToggle";
 import { LandDetailPanel } from "@/components/LandDetailPanel";
 
-const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+type Props = {
+  mapboxToken?: string;
+};
 
-export function LandMap() {
+export function LandMap({ mapboxToken }: Props) {
   const [selectedLand, setSelectedLand] = useState<LandListing | null>(null);
   const [activeHazards, setActiveHazards] = useState<Set<HazardLayerId>>(
     () => new Set(["flood"]),
@@ -59,7 +61,9 @@ export function LandMap() {
           NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN=your_token
         </code>
         <p className="text-xs text-zinc-500">
-          .env.local に設定してから開発サーバーを再起動してください。
+          ローカル: .env.local に設定して dev サーバーを再起動。
+          <br />
+          Vercel: 環境変数を保存したあと Production を再デプロイしてください。
         </p>
       </div>
     );

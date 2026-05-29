@@ -30,6 +30,12 @@ src/
   types/         # 型定義
 ```
 
-## デプロイ
+## デプロイ（Vercel）
 
-Vercel に `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` を環境変数として登録してデプロイします。
+1. Project → Settings → Environment Variables
+2. 名前は **`NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`**（完全一致）
+3. 値に Mapbox の `pk.` で始まるトークン
+4. **Production**（必要なら Preview も）にチェック → Save
+5. **Deployments → 最新の ⋯ → Redeploy**（環境変数追加後は再デプロイ必須）
+
+トークンはサーバーから地図コンポーネントへ渡すため、Vercel 上で設定後に再デプロイすれば反映されます。
