@@ -1,34 +1,70 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, {
   Layer,
   Marker,
   NavigationControl,
   Popup,
   Source,
+  type MapRef,
 } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 
-import { lands, ISE_CENTER } from "@/data/lands";
+import { ISE_CENTER } from "@/data/lands";
 import {
+  BASE_MAPS,
+  DEFAULT_BASE_MAP,
   DEFAULT_ZOOM,
+  HAZARD_ATTRIBUTION,
   HAZARD_LAYERS,
-  MAP_STYLE,
+  type BaseMapId,
 } from "@/lib/map-config";
-import type { HazardLayerId, LandListing } from "@/types/land";
+import type { ColorMode, HazardLayerId, LandListing } from "@/types/land";
 import { HazardLayerToggle } from "@/components/HazardLayerToggle";
 import { LandDetailPanel } from "@/components/LandDetailPanel";
+import { ColorModeControl } from "@/components/ColorModeControl";
+import { BaseMapControl } from "@/components/BaseMapControl";
+import { computeLandMetrics } from "@/lib/metrics";
+import { getMarkerColor } from "@/lib/color-modes";
 
 type Props = {
   mapboxToken?: string;
+  lands: LandListing[];
 };
 
-export function LandMap({ mapboxToken }: Props) {
+export function LandMap({ mapboxToken, lands }: Props) {
   const [selectedLand, setSelectedLand] = useState<LandListing | null>(null);
+  const [colorMode, setColorMode] = useState<ColorMode>("price");
+  const [baseMap, setBaseMap] = useState<BaseMapId>(DEFAULT_BASE_MAP);
   const [activeHazards, setActiveHazards] = useState<Set<HazardLayerId>>(
     () => new Set(["flood"]),
   );
+
+  const mapRef = useRef<MapRef | null>(null);
+
+  const applyJapaneseLabels = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    map?.setLanguage("ja");
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    if (map.isStyleLoaded()) {
+      applyJapaneseLabels();
+    } else {
+      map.once("style.load", applyJapaneseLabels);
+    }
+  }, [baseMap, applyJapaneseLabels]);
+
+  const landColors = useMemo(() => {
+    const colors: Record<string, string> = {};
+    for (const land of lands) {
+      colors[land.id] = getMarkerColor(colorMode, land, computeLandMetrics(land));
+    }
+    return colors;
+  }, [colorMode, lands]);
 
   const toggleHazard = useCallback((layerId: HazardLayerId) => {
     setActiveHazards((prev) => {
@@ -73,6 +109,7 @@ export function LandMap({ mapboxToken }: Props) {
     <div className="flex min-h-0 flex-1">
       <div className="relative min-h-0 flex-1">
         <Map
+          ref={mapRef}
           mapboxAccessToken={mapboxToken}
           initialViewState={{
             latitude: ISE_CENTER.lat,
@@ -80,10 +117,11 @@ export function LandMap({ mapboxToken }: Props) {
             zoom: DEFAULT_ZOOM,
           }}
           style={{ width: "100%", height: "100%" }}
-          mapStyle={MAP_STYLE}
+          mapStyle={BASE_MAPS[baseMap].style}
+          onLoad={applyJapaneseLabels}
           onClick={() => setSelectedLand(null)}
         >
-          <NavigationControl position="top-right" />
+          <NavigationControl position="bottom-right" />
 
           {hazardSources.map((layerId) => (
             <Source
@@ -92,12 +130,15 @@ export function LandMap({ mapboxToken }: Props) {
               type="raster"
               tiles={HAZARD_LAYERS[layerId].tiles}
               tileSize={256}
+              minzoom={HAZARD_LAYERS[layerId].minzoom}
+              maxzoom={HAZARD_LAYERS[layerId].maxzoom}
+              attribution={HAZARD_ATTRIBUTION}
             >
               <Layer
                 id={`hazard-${layerId}-layer`}
                 type="raster"
                 paint={{
-                  "raster-opacity": layerId === "flood" ? 0.55 : 0.45,
+                  "raster-opacity": HAZARD_LAYERS[layerId].opacity,
                 }}
               />
             </Source>
@@ -116,11 +157,12 @@ export function LandMap({ mapboxToken }: Props) {
             >
               <button
                 type="button"
-                className={`flex size-8 items-center justify-center rounded-full border-2 border-white shadow-md transition-transform hover:scale-110 ${
+                className={`flex size-8 items-center justify-center rounded-full border-2 shadow-md transition-transform hover:scale-110 ${
                   selectedLand?.id === land.id
-                    ? "bg-emerald-600"
-                    : "bg-amber-500"
+                    ? "border-zinc-900 ring-2 ring-zinc-900/30"
+                    : "border-white"
                 }`}
+                style={{ backgroundColor: landColors[land.id] }}
                 aria-label={land.name}
               >
                 <span className="size-2 rounded-full bg-white" />
@@ -146,7 +188,12 @@ export function LandMap({ mapboxToken }: Props) {
           )}
         </Map>
 
-        <div className="absolute left-3 top-3 z-10">
+        <div className="absolute right-3 top-3 z-10">
+          <BaseMapControl baseMap={baseMap} onChange={setBaseMap} />
+        </div>
+
+        <div className="absolute left-3 top-3 z-10 flex flex-col gap-2">
+          <ColorModeControl mode={colorMode} onChange={setColorMode} />
           <HazardLayerToggle
             activeLayers={activeHazards}
             onToggle={toggleHazard}
