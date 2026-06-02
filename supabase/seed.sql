@@ -1,4 +1,5 @@
--- 初期データ（伊勢市エリア5件）。src/data/lands.ts と同内容。
+-- 非推奨: 手入力シード。外部取り込みのみ使う場合は実行しない。
+-- 既に投入済みなら supabase/migrations/0004_remove_seed_lands.sql を実行。
 insert into public.lands
   (id, name, lat, lng, price, memo, elevation, school_elementary, school_junior_high, tsunami_risk)
 values

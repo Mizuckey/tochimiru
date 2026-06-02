@@ -10,10 +10,14 @@ export type SchoolDistrict = {
 export type LandListing = {
   id: string;
   name: string;
+  /** 物件所在地（取得元サイトの住所表記） */
+  address?: string;
   lat: number;
   lng: number;
   /** 価格（万円） */
   price: number;
+  /** 土地面積（㎡） */
+  areaSqm?: number;
   memo: string;
   /** 標高（m）。Phase 1 は手入力（将来は国土地理院標高APIで取得予定） */
   elevation?: number;
@@ -21,6 +25,14 @@ export type LandListing = {
   schoolDistrict?: SchoolDistrict;
   /** 津波リスク（手入力の暫定評価） */
   tsunamiRisk?: TsunamiRisk;
+  /** 取得元サイト名 */
+  sourceSite?: string;
+  /** 取得元URL */
+  sourceUrl?: string;
+  /** 取得元サイト上の代表画像URL（画像自体は保存しない） */
+  imageUrl?: string;
+  /** 取得元サイト内のID */
+  externalId?: string;
 };
 
 export type HazardLayerId =
@@ -58,12 +70,18 @@ export type ColorMode = "price" | "station" | "elevation" | "tsunami";
 export type LandRow = {
   id: string;
   name: string;
+  address: string | null;
   lat: number;
   lng: number;
   price: number;
+  area_sqm: number | null;
   memo: string;
   elevation: number | null;
   school_elementary: string | null;
   school_junior_high: string | null;
   tsunami_risk: TsunamiRisk | null;
+  source_site: string | null;
+  source_url: string | null;
+  image_url: string | null;
+  external_id: string | null;
 };

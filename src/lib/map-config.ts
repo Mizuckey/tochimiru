@@ -19,7 +19,7 @@ export const BASE_MAPS: Record<
   },
 };
 
-export const DEFAULT_BASE_MAP: BaseMapId = "standard";
+export const DEFAULT_BASE_MAP: BaseMapId = "satellite";
 
 /** @deprecated BASE_MAPS を使用 */
 export const MAP_STYLE = BASE_MAPS.standard.style;

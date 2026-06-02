@@ -10,7 +10,7 @@ export function ColorModeControl({ mode, onChange }: Props) {
   const config = COLOR_MODES[mode];
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur">
+    <div className="flex w-full max-w-full flex-col gap-2 rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:max-w-xs">
       <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
         色分け
       </p>

@@ -40,8 +40,27 @@ export function LandMap({ mapboxToken, lands }: Props) {
   const [activeHazards, setActiveHazards] = useState<Set<HazardLayerId>>(
     () => new Set(["flood"]),
   );
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   const mapRef = useRef<MapRef | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedLand || isDesktop) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [selectedLand, isDesktop]);
 
   const applyJapaneseLabels = useCallback(() => {
     const map = mapRef.current?.getMap();
@@ -86,14 +105,18 @@ export function LandMap({ mapboxToken, lands }: Props) {
     [activeHazards],
   );
 
+  const closeDetail = useCallback(() => setSelectedLand(null), []);
+
   if (!mapboxToken) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-zinc-50 p-8 text-center">
-        <h1 className="text-2xl font-semibold text-zinc-900">トチミル</h1>
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-zinc-50 p-6 text-center sm:p-8">
+        <h1 className="text-xl font-semibold text-zinc-900 sm:text-2xl">
+          トチミル
+        </h1>
         <p className="max-w-md text-sm text-zinc-600">
           地図を表示するには Mapbox のアクセストークンが必要です。
         </p>
-        <code className="rounded bg-zinc-200 px-3 py-2 text-xs">
+        <code className="max-w-full overflow-x-auto rounded bg-zinc-200 px-3 py-2 text-xs">
           NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN=your_token
         </code>
         <p className="text-xs text-zinc-500">
@@ -105,9 +128,23 @@ export function LandMap({ mapboxToken, lands }: Props) {
     );
   }
 
+  const mapTools = (
+    <>
+      <ColorModeControl mode={colorMode} onChange={setColorMode} />
+      <HazardLayerToggle
+        activeLayers={activeHazards}
+        onToggle={toggleHazard}
+      />
+    </>
+  );
+
   return (
-    <div className="flex min-h-0 flex-1">
-      <div className="relative min-h-0 flex-1">
+    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div
+        className={`relative min-h-0 flex-1 ${
+          selectedLand && !isDesktop ? "min-h-[42vh]" : "min-h-[50vh]"
+        } lg:min-h-0`}
+      >
         <Map
           ref={mapRef}
           mapboxAccessToken={mapboxToken}
@@ -153,30 +190,31 @@ export function LandMap({ mapboxToken, lands }: Props) {
               onClick={(e) => {
                 e.originalEvent.stopPropagation();
                 setSelectedLand(land);
+                setToolsOpen(false);
               }}
             >
               <button
                 type="button"
-                className={`flex size-8 items-center justify-center rounded-full border-2 shadow-md transition-transform hover:scale-110 ${
+                className={`flex size-5 items-center justify-center rounded-full border shadow-md transition-transform active:scale-95 sm:hover:scale-110 ${
                   selectedLand?.id === land.id
-                    ? "border-zinc-900 ring-2 ring-zinc-900/30"
+                    ? "border-zinc-900 ring-1 ring-zinc-900/30"
                     : "border-white"
                 }`}
                 style={{ backgroundColor: landColors[land.id] }}
                 aria-label={land.name}
               >
-                <span className="size-2 rounded-full bg-white" />
+                <span className="size-1 rounded-full bg-white" />
               </button>
             </Marker>
           ))}
 
-          {selectedLand && (
+          {selectedLand && isDesktop && (
             <Popup
               latitude={selectedLand.lat}
               longitude={selectedLand.lng}
               anchor="top"
               closeOnClick={false}
-              onClose={() => setSelectedLand(null)}
+              onClose={closeDetail}
             >
               <div className="text-sm">
                 <p className="font-semibold">{selectedLand.name}</p>
@@ -188,28 +226,46 @@ export function LandMap({ mapboxToken, lands }: Props) {
           )}
         </Map>
 
-        <div className="absolute right-3 top-3 z-10">
+        <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3">
           <BaseMapControl baseMap={baseMap} onChange={setBaseMap} />
         </div>
 
-        <div className="absolute left-3 top-3 z-10 flex flex-col gap-2">
-          <ColorModeControl mode={colorMode} onChange={setColorMode} />
-          <HazardLayerToggle
-            activeLayers={activeHazards}
-            onToggle={toggleHazard}
-          />
+        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-5rem)] flex-col gap-2 sm:left-3 sm:top-3 sm:max-w-[min(100%,20rem)]">
+          <button
+            type="button"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white/95 px-4 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur lg:hidden"
+            aria-expanded={toolsOpen}
+            onClick={() => setToolsOpen((open) => !open)}
+          >
+            {toolsOpen ? "地図ツールを閉じる" : "地図ツール"}
+          </button>
+
+          <div
+            className={`flex flex-col gap-2 overflow-y-auto overscroll-contain ${
+              toolsOpen ? "max-h-[min(50vh,20rem)]" : "hidden"
+            } lg:flex lg:max-h-[calc(100vh-6rem)]`}
+          >
+            {mapTools}
+          </div>
         </div>
 
-        <header className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-lg bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
-          <p className="text-sm font-semibold text-zinc-900">トチミル</p>
-          <p className="text-xs text-zinc-500">伊勢市 — 売地 {lands.length} 件</p>
+        <header
+          className={`pointer-events-none absolute left-2 z-10 max-w-[calc(100%-6rem)] rounded-lg bg-white/90 px-2.5 py-1.5 shadow-sm backdrop-blur sm:left-3 sm:px-3 sm:py-2 ${
+            selectedLand && !isDesktop
+              ? "bottom-[calc(min(58vh,28rem)+0.5rem)]"
+              : "bottom-2 sm:bottom-3"
+          } lg:bottom-3`}
+        >
+          <p className="text-xs font-semibold text-zinc-900 sm:text-sm">
+            トチミル
+          </p>
+          <p className="text-[10px] text-zinc-500 sm:text-xs">
+            伊勢市 — 売地 {lands.length} 件
+          </p>
         </header>
       </div>
 
-      <LandDetailPanel
-        land={selectedLand}
-        onClose={() => setSelectedLand(null)}
-      />
+      <LandDetailPanel land={selectedLand} onClose={closeDetail} />
     </div>
   );
 }

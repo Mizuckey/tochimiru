@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   description: "伊勢市の土地を地図で見る — 土地マップ",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{

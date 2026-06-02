@@ -6,15 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:belinda-lands": "node scripts/import-belinda-lands.mjs",
+    "import:soken-lands": "node scripts/import-soken-lands.mjs",
+    "import:lands": "npm run import:belinda-lands && npm run import:soken-lands"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
+    "cheerio": "^1.2.0",
     "mapbox-gl": "^3.24.0",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-map-gl": "^8.1.1"
+    "react-map-gl": "^8.1.1",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

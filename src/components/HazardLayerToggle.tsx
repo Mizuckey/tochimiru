@@ -20,7 +20,7 @@ export function HazardLayerToggle({ activeLayers, onToggle }: Props) {
   ) as HazardLegendId[];
 
   return (
-    <div className="flex max-h-[70vh] w-64 flex-col gap-3 overflow-y-auto rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur">
+    <div className="flex w-full max-w-full flex-col gap-3 overflow-y-auto rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:max-w-xs lg:max-h-[70vh] lg:w-64">
       <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
         ハザードマップ
       </p>

@@ -21,42 +21,29 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export function LandDetailPanel({ land, onClose }: Props) {
-  if (!land) {
-    return (
-      <aside className="flex w-80 shrink-0 flex-col border-l border-zinc-200 bg-white p-4">
-        <h2 className="text-lg font-semibold text-zinc-900">トチミル</h2>
-        <p className="mt-2 text-sm text-zinc-600">
-          地図のピンをクリックすると、土地の情報が表示されます。
-        </p>
-        <p className="mt-4 text-xs text-zinc-400">Phase 1 — 伊勢市エリア</p>
-      </aside>
-    );
-  }
-
+function DetailBody({ land }: { land: LandListing }) {
   const metrics = computeLandMetrics(land);
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-zinc-200 bg-white p-4">
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="text-lg font-semibold text-zinc-900">{land.name}</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
-          aria-label="閉じる"
-        >
-          ×
-        </button>
-      </div>
-
-      <dl className="mt-4 space-y-3 text-sm">
+    <>
+      <dl className="space-y-3 text-sm">
         <div>
           <dt className="text-zinc-500">価格</dt>
           <dd className="text-xl font-semibold text-emerald-700">
             {land.price.toLocaleString()} 万円
           </dd>
         </div>
+
+        {land.address && <Row label="所在地">{land.address}</Row>}
+
+        {land.areaSqm !== undefined && (
+          <Row label="土地面積">
+            {land.areaSqm.toLocaleString()} ㎡
+            <span className="ml-1 text-xs text-zinc-400">
+              （約{(land.areaSqm / 3.305785).toFixed(1)}坪）
+            </span>
+          </Row>
+        )}
 
         {metrics.nearestStation && (
           <Row label="最寄り駅">
@@ -110,11 +97,100 @@ export function LandDetailPanel({ land, onClose }: Props) {
           <dt className="text-zinc-500">メモ</dt>
           <dd className="text-zinc-800">{land.memo}</dd>
         </div>
+
+        {land.imageUrl && (
+          <Row label="画像">
+            <a
+              href={land.imageUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sky-700 underline-offset-2 hover:underline"
+            >
+              代表画像を開く
+            </a>
+          </Row>
+        )}
+
+        {land.sourceUrl && (
+          <Row label="取得元">
+            <a
+              href={land.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sky-700 underline-offset-2 hover:underline"
+            >
+              {land.sourceSite ?? "物件ページ"}
+            </a>
+            {land.externalId && (
+              <span className="ml-1 text-xs text-zinc-400">
+                ({land.externalId})
+              </span>
+            )}
+          </Row>
+        )}
       </dl>
 
       <p className="mt-4 text-xs text-zinc-400">
         駅徒歩・避難所距離は座標からの直線距離に基づく暫定値です。
       </p>
-    </aside>
+    </>
+  );
+}
+
+export function LandDetailPanel({ land, onClose }: Props) {
+  if (!land) {
+    return (
+      <aside className="hidden w-72 shrink-0 flex-col border-l border-zinc-200 bg-white p-4 xl:w-80 lg:flex">
+        <h2 className="text-lg font-semibold text-zinc-900">トチミル</h2>
+        <p className="mt-2 text-sm text-zinc-600">
+          地図のピンをクリックすると、土地の情報が表示されます。
+        </p>
+        <p className="mt-4 text-xs text-zinc-400">
+          取り込みデータが無い場合は import スクリプトを実行してください。
+        </p>
+      </aside>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="fixed inset-0 z-20 bg-black/35 lg:hidden"
+        aria-label="詳細を閉じる"
+        onClick={onClose}
+      />
+
+      <aside
+        className="fixed inset-x-0 bottom-0 z-30 flex max-h-[min(58vh,28rem)] flex-col overflow-hidden rounded-t-2xl border-t border-zinc-200 bg-white shadow-2xl lg:static lg:z-auto lg:max-h-none lg:w-72 lg:shrink-0 lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none xl:w-80"
+        role="dialog"
+        aria-modal="true"
+        aria-label="土地の詳細"
+      >
+        <div className="shrink-0 border-b border-zinc-100 px-4 pb-2 pt-3 lg:border-0 lg:pt-4">
+          <div
+            className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-300 lg:hidden"
+            aria-hidden
+          />
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-base font-semibold text-zinc-900 sm:text-lg">
+              {land.name}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="-mr-1 min-h-11 min-w-11 rounded-lg text-lg text-zinc-500 hover:bg-zinc-100 lg:min-h-0 lg:min-w-0 lg:px-2 lg:py-1 lg:text-sm"
+              aria-label="閉じる"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 lg:pb-4">
+          <DetailBody land={land} />
+        </div>
+      </aside>
+    </>
   );
 }
