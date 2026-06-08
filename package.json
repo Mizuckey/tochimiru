@@ -9,7 +9,8 @@
     "lint": "eslint",
     "import:belinda-lands": "node scripts/import-belinda-lands.mjs",
     "import:soken-lands": "node scripts/import-soken-lands.mjs",
-    "import:lands": "npm run import:belinda-lands && npm run import:soken-lands"
+    "import:nk-lands": "node scripts/import-nk-lands.mjs",
+    "import:lands": "node scripts/import-lands.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

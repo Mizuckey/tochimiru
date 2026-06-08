@@ -50,6 +50,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 
 - `belinda.co.jp`（ヴェリンダホームズ）
 - `sokenhousing.co.jp`（創建ハウジング）
+- `nk-housing.co.jp`（ナカムラ工務店 / NKハウジング）
 
 取り込みにはSupabaseの `service_role` キーが必要です。これはサーバー/ローカルスクリプト専用の秘密鍵なので、`NEXT_PUBLIC_` を付けず、絶対にGitへコミットしないでください。
 
@@ -64,6 +65,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 ```bash
 npm run import:belinda-lands -- --dry-run --limit=3
 npm run import:soken-lands -- --dry-run --limit=3
+npm run import:nk-lands -- --dry-run --limit=3
 ```
 
 Supabaseへ取り込み:
@@ -71,9 +73,16 @@ Supabaseへ取り込み:
 ```bash
 npm run import:belinda-lands
 npm run import:soken-lands
+npm run import:nk-lands
 
 # まとめて実行
 npm run import:lands
+
+# 取得元を指定してまとめ実行用ラッパーを使う
+npm run import:lands -- --source=belinda
+npm run import:lands -- --source=soken
+npm run import:lands -- --source=nk
+npm run import:lands -- --source=all --dry-run
 ```
 
 取得項目:
@@ -86,6 +95,20 @@ npm run import:lands
 - 取得元URL
 - 取得元サイト上の代表画像URL（画像自体は保存しない）
 - Mapbox Geocodingによる緯度経度
+
+## GitHub Actions で定期取り込み
+
+`.github/workflows/import-lands.yml` で、毎日 JST 05:20 に `npm run import:lands -- --source=all` を実行します。Actions 画面から手動実行もできます。
+
+GitHub の Repository → Settings → Secrets and variables → Actions → Repository secrets に以下を登録してください。
+
+```bash
+NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+NEXT_PUBLIC_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+手動実行では `source`（`all` / `belinda` / `soken` / `nk`）と `dry_run` を選べます。`dry_run=true` の場合はSupabaseへ書き込みません。
 
 ## プロジェクト構成
 
