@@ -63,9 +63,6 @@ export type Shelter = {
   lng: number;
 };
 
-/** 地図のピンを色分けする指標 */
-export type ColorMode = "price" | "station" | "elevation" | "tsunami";
-
 /** Supabase `lands` テーブルの行（snake_case） */
 export type LandRow = {
   id: string;

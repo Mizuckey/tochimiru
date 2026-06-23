@@ -20,19 +20,16 @@ import {
   HAZARD_LAYERS,
   type BaseMapId,
 } from "@/lib/map-config";
-import type { ColorMode, HazardLayerId, LandListing } from "@/types/land";
-import type {
-  MapDataMode,
-  MarketTransaction,
-  TransactionColorMode,
-} from "@/types/market-transaction";
+import type { HazardLayerId, LandListing } from "@/types/land";
+import type { MapDataMode, MarketTransaction } from "@/types/market-transaction";
 import { LandDetailPanel } from "@/components/LandDetailPanel";
 import { MarketTransactionDetailPanel } from "@/components/MarketTransactionDetailPanel";
 import { BaseMapControl } from "@/components/BaseMapControl";
 import { MapToolsPanel } from "@/components/MapToolsPanel";
-import { computeLandMetrics } from "@/lib/metrics";
-import { getMarkerColor } from "@/lib/color-modes";
-import { getTransactionMarkerColor } from "@/lib/transaction-color-modes";
+import {
+  getLandListingMarkerColor,
+  getTransactionMarkerColor,
+} from "@/lib/tsubo-unit-price-color";
 import {
   findLocationGroupForTransaction,
   groupMarketTransactionsByLocation,
@@ -60,9 +57,6 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
   const [selectedLand, setSelectedLand] = useState<LandListing | null>(null);
   const [selectedTransaction, setSelectedTransaction] =
     useState<MarketTransaction | null>(null);
-  const [colorMode, setColorMode] = useState<ColorMode>("price");
-  const [transactionColorMode, setTransactionColorMode] =
-    useState<TransactionColorMode>("unitPrice");
   const [baseMap, setBaseMap] = useState<BaseMapId>(DEFAULT_BASE_MAP);
   const [activeHazards, setActiveHazards] = useState<Set<HazardLayerId>>(
     () => new Set(["flood"]),
@@ -135,22 +129,19 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
   const landColors = useMemo(() => {
     const colors: Record<string, string> = {};
     for (const land of lands) {
-      colors[land.id] = getMarkerColor(colorMode, land, computeLandMetrics(land));
+      colors[land.id] = getLandListingMarkerColor(land);
     }
     return colors;
-  }, [colorMode, lands]);
+  }, [lands]);
 
   const transactionColors = useMemo(() => {
     const colors: Record<string, string> = {};
     for (const group of transactionLocationGroups) {
       const representative = group.transactions[0];
-      colors[group.key] = getTransactionMarkerColor(
-        transactionColorMode,
-        representative,
-      );
+      colors[group.key] = getTransactionMarkerColor(representative);
     }
     return colors;
-  }, [transactionColorMode, transactionLocationGroups]);
+  }, [transactionLocationGroups]);
 
   const handleDataModeChange = useCallback((mode: MapDataMode) => {
     setDataMode(mode);
@@ -435,7 +426,7 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
           <BaseMapControl baseMap={baseMap} onChange={setBaseMap} />
         </div>
 
-        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-5rem)] flex-col gap-2 sm:left-3 sm:top-3">
+        <div className="absolute left-2 top-2 z-10 flex w-[min(calc(100%-5rem),17.5rem)] flex-col gap-2 sm:left-3 sm:top-3">
           <button
             type="button"
             className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white/95 px-4 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur lg:hidden"
@@ -446,17 +437,13 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
           </button>
 
           <div
-            className={`overflow-y-auto overscroll-contain ${
+            className={`min-w-0 overflow-y-auto overscroll-contain ${
               toolsOpen ? "max-h-[min(75vh,28rem)]" : "hidden"
             } lg:block lg:max-h-[calc(100vh-5rem)]`}
           >
             <MapToolsPanel
               dataMode={dataMode}
               onDataModeChange={handleDataModeChange}
-              colorMode={colorMode}
-              onColorModeChange={setColorMode}
-              transactionColorMode={transactionColorMode}
-              onTransactionColorModeChange={setTransactionColorMode}
               activeHazards={activeHazards}
               onToggleHazard={toggleHazard}
               highlightShujuuDistrict={highlightShujuuDistrict}

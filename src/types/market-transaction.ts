@@ -1,9 +1,6 @@
 /** 地図の表示モード */
 export type MapDataMode = "listings" | "reinfolib";
 
-/** 取引事例ピンの色分け指標 */
-export type TransactionColorMode = "unitPrice" | "tradePrice";
-
 /** Supabase `market_transactions` の行（snake_case） */
 export type MarketTransactionRow = {
   id: string;
