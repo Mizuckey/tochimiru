@@ -21,21 +21,37 @@ import {
   type BaseMapId,
 } from "@/lib/map-config";
 import type { ColorMode, HazardLayerId, LandListing } from "@/types/land";
+import type {
+  MapDataMode,
+  MarketTransaction,
+  TransactionColorMode,
+} from "@/types/market-transaction";
 import { HazardLayerToggle } from "@/components/HazardLayerToggle";
 import { LandDetailPanel } from "@/components/LandDetailPanel";
+import { MarketTransactionDetailPanel } from "@/components/MarketTransactionDetailPanel";
 import { ColorModeControl } from "@/components/ColorModeControl";
+import { TransactionColorModeControl } from "@/components/TransactionColorModeControl";
+import { DataModeControl } from "@/components/DataModeControl";
 import { BaseMapControl } from "@/components/BaseMapControl";
 import { computeLandMetrics } from "@/lib/metrics";
 import { getMarkerColor } from "@/lib/color-modes";
+import { getTransactionMarkerColor } from "@/lib/transaction-color-modes";
+import { transactionMapLabel } from "@/lib/market-transactions-repository";
 
 type Props = {
   mapboxToken?: string;
   lands: LandListing[];
+  marketTransactions: MarketTransaction[];
 };
 
-export function LandMap({ mapboxToken, lands }: Props) {
+export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
+  const [dataMode, setDataMode] = useState<MapDataMode>("listings");
   const [selectedLand, setSelectedLand] = useState<LandListing | null>(null);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<MarketTransaction | null>(null);
   const [colorMode, setColorMode] = useState<ColorMode>("price");
+  const [transactionColorMode, setTransactionColorMode] =
+    useState<TransactionColorMode>("unitPrice");
   const [baseMap, setBaseMap] = useState<BaseMapId>(DEFAULT_BASE_MAP);
   const [activeHazards, setActiveHazards] = useState<Set<HazardLayerId>>(
     () => new Set(["flood"]),
@@ -44,6 +60,17 @@ export function LandMap({ mapboxToken, lands }: Props) {
   const [isDesktop, setIsDesktop] = useState(false);
 
   const mapRef = useRef<MapRef | null>(null);
+
+  const mappableTransactions = useMemo(
+    () =>
+      marketTransactions.filter(
+        (t) => t.lat != null && t.lng != null,
+      ) as (MarketTransaction & { lat: number; lng: number })[],
+    [marketTransactions],
+  );
+
+  const detailOpen =
+    dataMode === "listings" ? selectedLand != null : selectedTransaction != null;
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -54,13 +81,13 @@ export function LandMap({ mapboxToken, lands }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!selectedLand || isDesktop) return;
+    if (!detailOpen || isDesktop) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [selectedLand, isDesktop]);
+  }, [detailOpen, isDesktop]);
 
   const applyJapaneseLabels = useCallback(() => {
     const map = mapRef.current?.getMap();
@@ -85,6 +112,23 @@ export function LandMap({ mapboxToken, lands }: Props) {
     return colors;
   }, [colorMode, lands]);
 
+  const transactionColors = useMemo(() => {
+    const colors: Record<string, string> = {};
+    for (const transaction of mappableTransactions) {
+      colors[transaction.id] = getTransactionMarkerColor(
+        transactionColorMode,
+        transaction,
+      );
+    }
+    return colors;
+  }, [transactionColorMode, mappableTransactions]);
+
+  const handleDataModeChange = useCallback((mode: MapDataMode) => {
+    setDataMode(mode);
+    setSelectedLand(null);
+    setSelectedTransaction(null);
+  }, []);
+
   const toggleHazard = useCallback((layerId: HazardLayerId) => {
     setActiveHazards((prev) => {
       const next = new Set(prev);
@@ -105,7 +149,19 @@ export function LandMap({ mapboxToken, lands }: Props) {
     [activeHazards],
   );
 
-  const closeDetail = useCallback(() => setSelectedLand(null), []);
+  const closeDetail = useCallback(() => {
+    setSelectedLand(null);
+    setSelectedTransaction(null);
+  }, []);
+
+  const headerSubtitle =
+    dataMode === "listings"
+      ? `伊勢市 — 売地 ${lands.length} 件`
+      : marketTransactions.length === 0
+        ? "五十鈴川駅周辺 — 取引事例なし"
+        : mappableTransactions.length < marketTransactions.length
+          ? `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件（地図 ${mappableTransactions.length} 件）`
+          : `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件`;
 
   if (!mapboxToken) {
     return (
@@ -130,7 +186,15 @@ export function LandMap({ mapboxToken, lands }: Props) {
 
   const mapTools = (
     <>
-      <ColorModeControl mode={colorMode} onChange={setColorMode} />
+      <DataModeControl mode={dataMode} onChange={handleDataModeChange} />
+      {dataMode === "listings" ? (
+        <ColorModeControl mode={colorMode} onChange={setColorMode} />
+      ) : (
+        <TransactionColorModeControl
+          mode={transactionColorMode}
+          onChange={setTransactionColorMode}
+        />
+      )}
       <HazardLayerToggle
         activeLayers={activeHazards}
         onToggle={toggleHazard}
@@ -142,7 +206,7 @@ export function LandMap({ mapboxToken, lands }: Props) {
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       <div
         className={`relative min-h-0 flex-1 ${
-          selectedLand && !isDesktop ? "min-h-[42vh]" : "min-h-[50vh]"
+          detailOpen && !isDesktop ? "min-h-[42vh]" : "min-h-[50vh]"
         } lg:min-h-0`}
       >
         <Map
@@ -156,7 +220,7 @@ export function LandMap({ mapboxToken, lands }: Props) {
           style={{ width: "100%", height: "100%" }}
           mapStyle={BASE_MAPS[baseMap].style}
           onLoad={applyJapaneseLabels}
-          onClick={() => setSelectedLand(null)}
+          onClick={closeDetail}
         >
           <NavigationControl position="bottom-right" />
 
@@ -181,34 +245,63 @@ export function LandMap({ mapboxToken, lands }: Props) {
             </Source>
           ))}
 
-          {lands.map((land) => (
-            <Marker
-              key={land.id}
-              latitude={land.lat}
-              longitude={land.lng}
-              anchor="bottom"
-              onClick={(e) => {
-                e.originalEvent.stopPropagation();
-                setSelectedLand(land);
-                setToolsOpen(false);
-              }}
-            >
-              <button
-                type="button"
-                className={`flex size-5 items-center justify-center rounded-full border shadow-md transition-transform active:scale-95 sm:hover:scale-110 ${
-                  selectedLand?.id === land.id
-                    ? "border-zinc-900 ring-1 ring-zinc-900/30"
-                    : "border-white"
-                }`}
-                style={{ backgroundColor: landColors[land.id] }}
-                aria-label={land.name}
+          {dataMode === "listings" &&
+            lands.map((land) => (
+              <Marker
+                key={land.id}
+                latitude={land.lat}
+                longitude={land.lng}
+                anchor="bottom"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  setSelectedLand(land);
+                  setToolsOpen(false);
+                }}
               >
-                <span className="size-1 rounded-full bg-white" />
-              </button>
-            </Marker>
-          ))}
+                <button
+                  type="button"
+                  className={`flex size-5 items-center justify-center rounded-full border shadow-md transition-transform active:scale-95 sm:hover:scale-110 ${
+                    selectedLand?.id === land.id
+                      ? "border-zinc-900 ring-1 ring-zinc-900/30"
+                      : "border-white"
+                  }`}
+                  style={{ backgroundColor: landColors[land.id] }}
+                  aria-label={land.name}
+                >
+                  <span className="size-1 rounded-full bg-white" />
+                </button>
+              </Marker>
+            ))}
 
-          {selectedLand && isDesktop && (
+          {dataMode === "reinfolib" &&
+            mappableTransactions.map((transaction) => (
+              <Marker
+                key={transaction.id}
+                latitude={transaction.lat}
+                longitude={transaction.lng}
+                anchor="bottom"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  setSelectedTransaction(transaction);
+                  setToolsOpen(false);
+                }}
+              >
+                <button
+                  type="button"
+                  className={`flex size-4 rotate-45 items-center justify-center border shadow-md transition-transform active:scale-95 sm:hover:scale-110 ${
+                    selectedTransaction?.id === transaction.id
+                      ? "border-zinc-900 ring-1 ring-zinc-900/30"
+                      : "border-white"
+                  }`}
+                  style={{ backgroundColor: transactionColors[transaction.id] }}
+                  aria-label={transactionMapLabel(transaction)}
+                >
+                  <span className="size-1 -rotate-45 rounded-full bg-white" />
+                </button>
+              </Marker>
+            ))}
+
+          {dataMode === "listings" && selectedLand && isDesktop && (
             <Popup
               latitude={selectedLand.lat}
               longitude={selectedLand.lng}
@@ -221,6 +314,27 @@ export function LandMap({ mapboxToken, lands }: Props) {
                 <p className="text-emerald-700">
                   {selectedLand.price.toLocaleString()} 万円
                 </p>
+              </div>
+            </Popup>
+          )}
+
+          {dataMode === "reinfolib" && selectedTransaction && isDesktop && (
+            <Popup
+              latitude={selectedTransaction.lat!}
+              longitude={selectedTransaction.lng!}
+              anchor="top"
+              closeOnClick={false}
+              onClose={closeDetail}
+            >
+              <div className="text-sm">
+                <p className="font-semibold">
+                  {transactionMapLabel(selectedTransaction)}
+                </p>
+                {selectedTransaction.tradePriceYen != null && (
+                  <p className="text-emerald-700">
+                    {selectedTransaction.tradePriceYen.toLocaleString()} 円
+                  </p>
+                )}
               </div>
             </Popup>
           )}
@@ -251,7 +365,7 @@ export function LandMap({ mapboxToken, lands }: Props) {
 
         <header
           className={`pointer-events-none absolute left-2 z-10 max-w-[calc(100%-6rem)] rounded-lg bg-white/90 px-2.5 py-1.5 shadow-sm backdrop-blur sm:left-3 sm:px-3 sm:py-2 ${
-            selectedLand && !isDesktop
+            detailOpen && !isDesktop
               ? "bottom-[calc(min(58vh,28rem)+0.5rem)]"
               : "bottom-2 sm:bottom-3"
           } lg:bottom-3`}
@@ -259,13 +373,19 @@ export function LandMap({ mapboxToken, lands }: Props) {
           <p className="text-xs font-semibold text-zinc-900 sm:text-sm">
             トチミル
           </p>
-          <p className="text-[10px] text-zinc-500 sm:text-xs">
-            伊勢市 — 売地 {lands.length} 件
-          </p>
+          <p className="text-[10px] text-zinc-500 sm:text-xs">{headerSubtitle}</p>
         </header>
       </div>
 
-      <LandDetailPanel land={selectedLand} onClose={closeDetail} />
+      {dataMode === "listings" ? (
+        <LandDetailPanel land={selectedLand} onClose={closeDetail} />
+      ) : (
+        <MarketTransactionDetailPanel
+          transaction={selectedTransaction}
+          dataMode={dataMode}
+          onClose={closeDetail}
+        />
+      )}
     </div>
   );
 }

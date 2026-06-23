@@ -10,6 +10,7 @@
 - 最寄り駅と徒歩分（座標からの直線距離による推定）
 - 標高・最寄り避難所までの距離・学区の表示
 - 指標による色分け（価格 / 駅距離 / 標高 / 津波リスク）
+- **売地**と**不動産情報ライブラリの取引事例**を地図上で切り替え表示（ハザード重ね表示は共通）
 - 航空写真への切り替え・地図ラベルの日本語化
 - 土地データの Supabase 連携（未設定時はハードコードにフォールバック）
 - ヴェリンダホームズ（伊勢市の不動産会社）から売土地データを取得してSupabaseへ取り込み
@@ -109,6 +110,53 @@ SUPABASE_SERVICE_ROLE_KEY
 ```
 
 手動実行では `source`（`all` / `belinda` / `soken` / `nk`）と `dry_run` を選べます。`dry_run=true` の場合はSupabaseへ書き込みません。
+
+## 不動産情報ライブラリから取引価格を取り込む
+
+[不動産情報ライブラリ APIマニュアル](https://www.reinfolib.mlit.go.jp/help/apiManual/) の `XIT001`（不動産価格（取引価格・成約価格）情報取得API）を使い、五十鈴川駅周辺の取引価格・成約価格を取得します。
+
+API利用には、[API利用申請](https://www.reinfolib.mlit.go.jp/api/request/) で発行されたAPIキーが必要です。駅指定には国土数値情報（鉄道データ）のグループコードを使います。五十鈴川駅は `007892` です。
+
+Supabase SQL Editorで以下を実行してください。
+
+```text
+supabase/migrations/0005_create_market_transactions.sql
+supabase/migrations/0006_add_geocode_to_market_transactions.sql
+```
+
+`.env.local` または GitHub Actions Secrets に追加:
+
+```bash
+REAL_ESTATE_INFO_LIBRARY_API_KEY=...
+```
+
+ローカルでプレビュー:
+
+```bash
+npm run import:isuzugawa-prices -- --from-year=2021 --to-year=2026 --dry-run
+```
+
+Supabaseへ取り込み:
+
+```bash
+npm run import:isuzugawa-prices -- --from-year=2021 --to-year=2026
+```
+
+取り込み時に Mapbox Geocoding で町丁目代表の緯度経度を付与します（`NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` 必須）。ジオコードをスキップする場合は `--skip-geocode` を付けてください（地図モードではピンが出ません）。
+
+地図アプリの左上「表示モード」→ **取引事例** で、ハザードと重ねて確認できます。
+
+価格情報区分を指定する場合:
+
+```bash
+# 01: 不動産取引価格情報のみ
+npm run import:isuzugawa-prices -- --from-year=2021 --to-year=2026 --classification=01
+
+# 02: 成約価格情報のみ
+npm run import:isuzugawa-prices -- --from-year=2021 --to-year=2026 --classification=02
+```
+
+GitHub Actionsでは `.github/workflows/import-market-transactions.yml` が毎月1日 JST 06:10 に実行されます。手動実行では `from_year` / `to_year` / `classification` / `dry_run` を指定できます。
 
 ## プロジェクト構成
 
