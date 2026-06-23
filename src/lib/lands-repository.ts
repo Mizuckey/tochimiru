@@ -13,10 +13,10 @@ function rowToLand(row: LandRow): LandListing {
     memo: row.memo,
     elevation: row.elevation ?? undefined,
     schoolDistrict:
-      row.school_elementary && row.school_junior_high
+      row.school_elementary || row.school_junior_high
         ? {
-            elementary: row.school_elementary,
-            juniorHigh: row.school_junior_high,
+            elementary: row.school_elementary ?? undefined,
+            juniorHigh: row.school_junior_high ?? undefined,
           }
         : undefined,
     tsunamiRisk: row.tsunami_risk ?? undefined,

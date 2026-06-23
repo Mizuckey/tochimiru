@@ -6,9 +6,13 @@ import {
   priceClassificationLabel,
   transactionMapLabel,
 } from "@/lib/market-transactions-repository";
+import { inferredElementarySchoolsFromPlace } from "@/lib/elementary-school-districts";
+import { resolveIsuzuJuniorHighSchool } from "@/lib/isuzu-junior-high-district";
 
 type Props = {
   transaction: MarketTransaction | null;
+  locationTransactions: MarketTransaction[];
+  onSelectTransaction: (transaction: MarketTransaction) => void;
   dataMode: MapDataMode;
   onClose: () => void;
 };
@@ -38,6 +42,8 @@ function DetailBody({ transaction }: { transaction: MarketTransaction }) {
   ]
     .filter(Boolean)
     .join("");
+  const elementarySchools = inferredElementarySchoolsFromPlace(location);
+  const juniorHigh = resolveIsuzuJuniorHighSchool(location);
 
   return (
     <>
@@ -71,6 +77,20 @@ function DetailBody({ transaction }: { transaction: MarketTransaction }) {
         {transaction.type && <Row label="種類">{transaction.type}</Row>}
 
         {location && <Row label="所在地">{location}</Row>}
+
+        {elementarySchools.length > 0 && (
+          <Row label="小学校区（目安）">
+            {elementarySchools.join("・")}
+            <span className="ml-1 text-xs text-zinc-400">（町名リストより）</span>
+          </Row>
+        )}
+
+        {juniorHigh && (
+          <Row label="中学校区（目安）">
+            {juniorHigh}
+            <span className="ml-1 text-xs text-zinc-400">（町名リストより）</span>
+          </Row>
+        )}
 
         {transaction.nearestStation && (
           <Row label="最寄り駅">
@@ -128,8 +148,61 @@ function DetailBody({ transaction }: { transaction: MarketTransaction }) {
   );
 }
 
+function LocationTransactionPicker({
+  transactions,
+  selectedId,
+  onSelect,
+}: {
+  transactions: MarketTransaction[];
+  selectedId: string;
+  onSelect: (transaction: MarketTransaction) => void;
+}) {
+  if (transactions.length <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="mb-4 border-b border-zinc-100 pb-4">
+      <p className="mb-2 text-xs font-medium text-zinc-500">
+        この地点の取引 {transactions.length} 件
+      </p>
+      <ul className="max-h-40 space-y-1 overflow-y-auto overscroll-contain">
+        {transactions.map((item) => {
+          const selected = item.id === selectedId;
+          const price =
+            item.tradePriceYen != null
+              ? `${item.tradePriceYen.toLocaleString()} 円`
+              : "価格不明";
+          return (
+            <li key={item.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(item)}
+                className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                  selected
+                    ? "border-emerald-600 bg-emerald-50 text-zinc-900"
+                    : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
+                }`}
+              >
+                <span className="block font-medium leading-snug">
+                  {transactionMapLabel(item)}
+                </span>
+                <span className="mt-0.5 block text-xs text-emerald-700">
+                  {price}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function MarketTransactionDetailPanel({
   transaction,
+  locationTransactions,
+  onSelectTransaction,
   dataMode,
   onClose,
 }: Props) {
@@ -190,6 +263,11 @@ export function MarketTransactionDetailPanel({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 lg:pb-4">
+          <LocationTransactionPicker
+            transactions={locationTransactions}
+            selectedId={transaction.id}
+            onSelect={onSelectTransaction}
+          />
           <DetailBody transaction={transaction} />
         </div>
       </aside>

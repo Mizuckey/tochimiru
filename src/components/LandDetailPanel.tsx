@@ -1,5 +1,7 @@
 import type { LandListing, TsunamiRisk } from "@/types/land";
 import { computeLandMetrics, formatDistance } from "@/lib/metrics";
+import { resolvedElementaryForLand } from "@/lib/elementary-school-districts";
+import { resolvedJuniorHighForLand } from "@/lib/isuzu-junior-high-district";
 
 type Props = {
   land: LandListing | null;
@@ -23,6 +25,12 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 function DetailBody({ land }: { land: LandListing }) {
   const metrics = computeLandMetrics(land);
+  const { display: elementary, inferred: elementaryInferred } =
+    resolvedElementaryForLand(land);
+  const juniorHigh = resolvedJuniorHighForLand(land);
+  const juniorHighInferred =
+    juniorHigh != null && land.schoolDistrict?.juniorHigh == null;
+  const showSchoolDistrict = elementary != null || juniorHigh != null;
 
   return (
     <>
@@ -82,11 +90,29 @@ function DetailBody({ land }: { land: LandListing }) {
         </Row>
 
         <Row label="学区">
-          {land.schoolDistrict ? (
+          {showSchoolDistrict ? (
             <>
-              小: {land.schoolDistrict.elementary}
-              <br />
-              中: {land.schoolDistrict.juniorHigh}
+              {elementary != null && (
+                <>
+                  小: {elementary}
+                  {elementaryInferred && (
+                    <span className="ml-1 text-xs text-zinc-400">
+                      （町名リストより）
+                    </span>
+                  )}
+                </>
+              )}
+              {elementary != null && juniorHigh != null && <br />}
+              {juniorHigh != null && (
+                <>
+                  中: {juniorHigh}
+                  {juniorHighInferred && (
+                    <span className="ml-1 text-xs text-zinc-400">
+                      （町名リストより）
+                    </span>
+                  )}
+                </>
+              )}
             </>
           ) : (
             "—"

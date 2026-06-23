@@ -2,9 +2,9 @@ export type TsunamiRisk = "low" | "medium" | "high";
 
 export type SchoolDistrict = {
   /** 小学校区 */
-  elementary: string;
+  elementary?: string;
   /** 中学校区 */
-  juniorHigh: string;
+  juniorHigh?: string;
 };
 
 export type LandListing = {

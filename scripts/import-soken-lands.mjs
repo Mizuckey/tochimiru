@@ -3,6 +3,7 @@ import dns from "node:dns/promises";
 import { createClient } from "@supabase/supabase-js";
 import * as cheerio from "cheerio";
 import WebSocket from "ws";
+import { resolveIsuzuJuniorHighSchool } from "./lib/isuzu-junior-high-district.mjs";
 
 const SOURCE_SITE = "sokenhousing.co.jp";
 const LIST_URL = "https://www.sokenhousing.co.jp/tochi_ise/";
@@ -59,7 +60,7 @@ for (const [index, item] of targets.entries()) {
       memo: item.memo,
       elevation: null,
       school_elementary: null,
-      school_junior_high: null,
+      school_junior_high: resolveIsuzuJuniorHighSchool(item.address),
       tsunami_risk: null,
       source_site: SOURCE_SITE,
       source_url: item.sourceUrl,

@@ -26,18 +26,29 @@ import type {
   MarketTransaction,
   TransactionColorMode,
 } from "@/types/market-transaction";
-import { HazardLayerToggle } from "@/components/HazardLayerToggle";
 import { LandDetailPanel } from "@/components/LandDetailPanel";
 import { MarketTransactionDetailPanel } from "@/components/MarketTransactionDetailPanel";
-import { ColorModeControl } from "@/components/ColorModeControl";
-import { TransactionColorModeControl } from "@/components/TransactionColorModeControl";
-import { DataModeControl } from "@/components/DataModeControl";
 import { BaseMapControl } from "@/components/BaseMapControl";
+import { MapToolsPanel } from "@/components/MapToolsPanel";
 import { computeLandMetrics } from "@/lib/metrics";
 import { getMarkerColor } from "@/lib/color-modes";
 import { getTransactionMarkerColor } from "@/lib/transaction-color-modes";
+import {
+  findLocationGroupForTransaction,
+  groupMarketTransactionsByLocation,
+} from "@/lib/market-transaction-groups";
 import { transactionMapLabel } from "@/lib/market-transactions-repository";
-
+import {
+  ISUZU_JUNIOR_HIGH_SCHOOL_NAME,
+  isInIsuzuJuniorHighDistrict,
+  resolvedJuniorHighForLand,
+} from "@/lib/isuzu-junior-high-district";
+import {
+  isInShujuuElementaryForLand,
+  isInShuudouElementaryForLand,
+} from "@/lib/elementary-school-districts";
+import { isInShujuuElementaryDistrict } from "@/lib/shujuu-elementary-district";
+import { isInShuudouElementaryDistrict } from "@/lib/shuudou-elementary-district";
 type Props = {
   mapboxToken?: string;
   lands: LandListing[];
@@ -58,6 +69,9 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
   );
   const [toolsOpen, setToolsOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [highlightIsuzuDistrict, setHighlightIsuzuDistrict] = useState(false);
+  const [highlightShujuuDistrict, setHighlightShujuuDistrict] = useState(false);
+  const [highlightShuudouDistrict, setHighlightShuudouDistrict] = useState(false);
 
   const mapRef = useRef<MapRef | null>(null);
 
@@ -67,6 +81,20 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
         (t) => t.lat != null && t.lng != null,
       ) as (MarketTransaction & { lat: number; lng: number })[],
     [marketTransactions],
+  );
+
+  const transactionLocationGroups = useMemo(
+    () => groupMarketTransactionsByLocation(mappableTransactions),
+    [mappableTransactions],
+  );
+
+  const selectedLocationGroup = useMemo(
+    () =>
+      findLocationGroupForTransaction(
+        transactionLocationGroups,
+        selectedTransaction,
+      ),
+    [transactionLocationGroups, selectedTransaction],
   );
 
   const detailOpen =
@@ -114,14 +142,15 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
 
   const transactionColors = useMemo(() => {
     const colors: Record<string, string> = {};
-    for (const transaction of mappableTransactions) {
-      colors[transaction.id] = getTransactionMarkerColor(
+    for (const group of transactionLocationGroups) {
+      const representative = group.transactions[0];
+      colors[group.key] = getTransactionMarkerColor(
         transactionColorMode,
-        transaction,
+        representative,
       );
     }
     return colors;
-  }, [transactionColorMode, mappableTransactions]);
+  }, [transactionColorMode, transactionLocationGroups]);
 
   const handleDataModeChange = useCallback((mode: MapDataMode) => {
     setDataMode(mode);
@@ -160,8 +189,10 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
       : marketTransactions.length === 0
         ? "五十鈴川駅周辺 — 取引事例なし"
         : mappableTransactions.length < marketTransactions.length
-          ? `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件（地図 ${mappableTransactions.length} 件）`
-          : `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件`;
+          ? `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件（地図 ${transactionLocationGroups.length} か所）`
+          : transactionLocationGroups.length < mappableTransactions.length
+            ? `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件（地図 ${transactionLocationGroups.length} か所）`
+            : `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件`;
 
   if (!mapboxToken) {
     return (
@@ -184,23 +215,36 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
     );
   }
 
-  const mapTools = (
-    <>
-      <DataModeControl mode={dataMode} onChange={handleDataModeChange} />
-      {dataMode === "listings" ? (
-        <ColorModeControl mode={colorMode} onChange={setColorMode} />
-      ) : (
-        <TransactionColorModeControl
-          mode={transactionColorMode}
-          onChange={setTransactionColorMode}
-        />
-      )}
-      <HazardLayerToggle
-        activeLayers={activeHazards}
-        onToggle={toggleHazard}
-      />
-    </>
-  );
+  function markerDistrictRingClass(
+    selected: boolean,
+    inShujuu: boolean,
+    inShuudou: boolean,
+    inIsuzu: boolean,
+  ): string {
+    if (selected) return "border-zinc-900 ring-1 ring-zinc-900/30";
+    if (highlightShujuuDistrict && inShujuu) {
+      return "border-sky-700 ring-2 ring-sky-400/60";
+    }
+    if (highlightShuudouDistrict && inShuudou) {
+      return "border-teal-700 ring-2 ring-teal-400/60";
+    }
+    if (highlightIsuzuDistrict && inIsuzu) {
+      return "border-violet-700 ring-2 ring-violet-400/60";
+    }
+    return "border-white";
+  }
+
+  function markerDistrictDimmed(
+    inShujuu: boolean,
+    inShuudou: boolean,
+    inIsuzu: boolean,
+  ): boolean {
+    return (
+      (highlightShujuuDistrict && !inShujuu) ||
+      (highlightShuudouDistrict && !inShuudou) ||
+      (highlightIsuzuDistrict && !inIsuzu)
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -246,7 +290,15 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
           ))}
 
           {dataMode === "listings" &&
-            lands.map((land) => (
+            lands.map((land) => {
+              const inShujuu = isInShujuuElementaryForLand(land);
+              const inShuudou = isInShuudouElementaryForLand(land);
+              const inIsuzu =
+                resolvedJuniorHighForLand(land) === ISUZU_JUNIOR_HIGH_SCHOOL_NAME;
+              const dimmed = markerDistrictDimmed(inShujuu, inShuudou, inIsuzu);
+              const pinSelected = selectedLand?.id === land.id;
+
+              return (
               <Marker
                 key={land.id}
                 latitude={land.lat}
@@ -260,46 +312,80 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
               >
                 <button
                   type="button"
-                  className={`flex size-5 items-center justify-center rounded-full border shadow-md transition-transform active:scale-95 sm:hover:scale-110 ${
-                    selectedLand?.id === land.id
-                      ? "border-zinc-900 ring-1 ring-zinc-900/30"
-                      : "border-white"
-                  }`}
+                  className={`flex size-5 items-center justify-center rounded-full border shadow-md transition-transform active:scale-95 sm:hover:scale-110 ${markerDistrictRingClass(
+                    pinSelected,
+                    inShujuu,
+                    inShuudou,
+                    inIsuzu,
+                  )} ${dimmed ? "opacity-35" : ""}`}
                   style={{ backgroundColor: landColors[land.id] }}
                   aria-label={land.name}
                 >
                   <span className="size-1 rounded-full bg-white" />
                 </button>
               </Marker>
-            ))}
+            );
+            })}
 
           {dataMode === "reinfolib" &&
-            mappableTransactions.map((transaction) => (
-              <Marker
-                key={transaction.id}
-                latitude={transaction.lat}
-                longitude={transaction.lng}
-                anchor="bottom"
-                onClick={(e) => {
-                  e.originalEvent.stopPropagation();
-                  setSelectedTransaction(transaction);
-                  setToolsOpen(false);
-                }}
-              >
-                <button
-                  type="button"
-                  className={`flex size-4 rotate-45 items-center justify-center border shadow-md transition-transform active:scale-95 sm:hover:scale-110 ${
-                    selectedTransaction?.id === transaction.id
-                      ? "border-zinc-900 ring-1 ring-zinc-900/30"
-                      : "border-white"
-                  }`}
-                  style={{ backgroundColor: transactionColors[transaction.id] }}
-                  aria-label={transactionMapLabel(transaction)}
+            transactionLocationGroups.map((group) => {
+              const count = group.transactions.length;
+              const representative = group.transactions[0];
+              const placeLabel = [
+                representative.municipality,
+                representative.districtName,
+              ]
+                .filter(Boolean)
+                .join("");
+              const inShujuu = isInShujuuElementaryDistrict(placeLabel);
+              const inShuudou = isInShuudouElementaryDistrict(placeLabel);
+              const inIsuzu = isInIsuzuJuniorHighDistrict(placeLabel);
+              const dimmed = markerDistrictDimmed(inShujuu, inShuudou, inIsuzu);
+              const groupSelected =
+                selectedLocationGroup?.key === group.key;
+              const ariaLabel =
+                count > 1
+                  ? `${transactionMapLabel(representative)}、${count}件`
+                  : transactionMapLabel(representative);
+
+              return (
+                <Marker
+                  key={group.key}
+                  latitude={group.lat}
+                  longitude={group.lng}
+                  anchor="bottom"
+                  onClick={(e) => {
+                    e.originalEvent.stopPropagation();
+                    setSelectedTransaction(representative);
+                    setToolsOpen(false);
+                  }}
                 >
-                  <span className="size-1 -rotate-45 rounded-full bg-white" />
-                </button>
-              </Marker>
-            ))}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`flex size-4 rotate-45 items-center justify-center border shadow-md transition-transform active:scale-95 sm:hover:scale-110 ${markerDistrictRingClass(
+                        groupSelected,
+                        inShujuu,
+                        inShuudou,
+                        inIsuzu,
+                      )} ${dimmed ? "opacity-35" : ""}`}
+                      style={{ backgroundColor: transactionColors[group.key] }}
+                      aria-label={ariaLabel}
+                    >
+                      <span className="size-1 -rotate-45 rounded-full bg-white" />
+                    </button>
+                    {count > 1 && (
+                      <span
+                        className="pointer-events-none absolute -right-1.5 -top-1.5 flex min-h-4 min-w-4 items-center justify-center rounded-full border border-white bg-zinc-900 px-0.5 text-[10px] font-semibold leading-none text-white shadow-sm"
+                        aria-hidden
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </div>
+                </Marker>
+              );
+            })}
 
           {dataMode === "listings" && selectedLand && isDesktop && (
             <Popup
@@ -330,6 +416,11 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
                 <p className="font-semibold">
                   {transactionMapLabel(selectedTransaction)}
                 </p>
+                {(selectedLocationGroup?.transactions.length ?? 0) > 1 && (
+                  <p className="text-xs text-zinc-500">
+                    この地点 {selectedLocationGroup!.transactions.length} 件
+                  </p>
+                )}
                 {selectedTransaction.tradePriceYen != null && (
                   <p className="text-emerald-700">
                     {selectedTransaction.tradePriceYen.toLocaleString()} 円
@@ -344,7 +435,7 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
           <BaseMapControl baseMap={baseMap} onChange={setBaseMap} />
         </div>
 
-        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-5rem)] flex-col gap-2 sm:left-3 sm:top-3 sm:max-w-[min(100%,20rem)]">
+        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-5rem)] flex-col gap-2 sm:left-3 sm:top-3">
           <button
             type="button"
             className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white/95 px-4 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur lg:hidden"
@@ -355,11 +446,32 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
           </button>
 
           <div
-            className={`flex flex-col gap-2 overflow-y-auto overscroll-contain ${
-              toolsOpen ? "max-h-[min(50vh,20rem)]" : "hidden"
-            } lg:flex lg:max-h-[calc(100vh-6rem)]`}
+            className={`overflow-y-auto overscroll-contain ${
+              toolsOpen ? "max-h-[min(75vh,28rem)]" : "hidden"
+            } lg:block lg:max-h-[calc(100vh-5rem)]`}
           >
-            {mapTools}
+            <MapToolsPanel
+              dataMode={dataMode}
+              onDataModeChange={handleDataModeChange}
+              colorMode={colorMode}
+              onColorModeChange={setColorMode}
+              transactionColorMode={transactionColorMode}
+              onTransactionColorModeChange={setTransactionColorMode}
+              activeHazards={activeHazards}
+              onToggleHazard={toggleHazard}
+              highlightShujuuDistrict={highlightShujuuDistrict}
+              onToggleShujuuDistrict={() =>
+                setHighlightShujuuDistrict((v) => !v)
+              }
+              highlightShuudouDistrict={highlightShuudouDistrict}
+              onToggleShuudouDistrict={() =>
+                setHighlightShuudouDistrict((v) => !v)
+              }
+              highlightIsuzuDistrict={highlightIsuzuDistrict}
+              onToggleIsuzuDistrict={() =>
+                setHighlightIsuzuDistrict((v) => !v)
+              }
+            />
           </div>
         </div>
 
@@ -382,6 +494,8 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
       ) : (
         <MarketTransactionDetailPanel
           transaction={selectedTransaction}
+          locationTransactions={selectedLocationGroup?.transactions ?? []}
+          onSelectTransaction={setSelectedTransaction}
           dataMode={dataMode}
           onClose={closeDetail}
         />

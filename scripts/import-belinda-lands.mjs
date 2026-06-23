@@ -3,6 +3,7 @@ import dns from "node:dns/promises";
 import { createClient } from "@supabase/supabase-js";
 import * as cheerio from "cheerio";
 import WebSocket from "ws";
+import { resolveIsuzuJuniorHighSchool } from "./lib/isuzu-junior-high-district.mjs";
 
 const SOURCE_SITE = "belinda.co.jp";
 const LIST_URL = "https://belinda.co.jp/category/buy-land/";
@@ -136,7 +137,7 @@ async function parseDetailPage(url) {
     memo: buildMemo(fields),
     elevation: null,
     school_elementary: null,
-    school_junior_high: null,
+    school_junior_high: resolveIsuzuJuniorHighSchool(address),
     tsunami_risk: null,
     source_site: SOURCE_SITE,
     source_url: url,

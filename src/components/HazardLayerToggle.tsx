@@ -6,11 +6,12 @@ import { HazardIcon } from "@/components/HazardIcon";
 type Props = {
   activeLayers: Set<HazardLayerId>;
   onToggle: (layerId: HazardLayerId) => void;
+  embedded?: boolean;
 };
 
 const ALL_IDS = Object.keys(HAZARD_LAYERS) as HazardLayerId[];
 
-export function HazardLayerToggle({ activeLayers, onToggle }: Props) {
+export function HazardLayerToggle({ activeLayers, onToggle, embedded }: Props) {
   const activeLegendIds = Array.from(
     new Set(
       ALL_IDS.filter((id) => activeLayers.has(id)).map(
@@ -19,12 +20,8 @@ export function HazardLayerToggle({ activeLayers, onToggle }: Props) {
     ),
   ) as HazardLegendId[];
 
-  return (
-    <div className="flex w-full max-w-full flex-col gap-3 overflow-y-auto rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:max-w-xs lg:max-h-[70vh] lg:w-64">
-      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        ハザードマップ
-      </p>
-
+  const body = (
+    <>
       {HAZARD_CATEGORY_ORDER.map((category) => {
         const ids = ALL_IDS.filter(
           (id) => HAZARD_LAYERS[id].category === category,
@@ -93,6 +90,23 @@ export function HazardLayerToggle({ activeLayers, onToggle }: Props) {
           </p>
         </div>
       )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex max-h-[min(45vh,16rem)] flex-col gap-2 overflow-y-auto overscroll-contain">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex w-full max-w-full flex-col gap-3 overflow-y-auto rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:max-w-xs lg:max-h-[70vh] lg:w-64">
+      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        ハザードマップ
+      </p>
+      {body}
     </div>
   );
 }

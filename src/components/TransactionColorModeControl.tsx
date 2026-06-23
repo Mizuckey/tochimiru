@@ -4,13 +4,14 @@ import { TRANSACTION_COLOR_MODES } from "@/lib/transaction-color-modes";
 type Props = {
   mode: TransactionColorMode;
   onChange: (mode: TransactionColorMode) => void;
+  embedded?: boolean;
 };
 
-export function TransactionColorModeControl({ mode, onChange }: Props) {
+export function TransactionColorModeControl({ mode, onChange, embedded }: Props) {
   const config = TRANSACTION_COLOR_MODES[mode];
 
-  return (
-    <div className="flex w-full max-w-full flex-col gap-2 rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:max-w-xs">
+  const body = (
+    <>
       <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
         色分け
       </p>
@@ -21,7 +22,7 @@ export function TransactionColorModeControl({ mode, onChange }: Props) {
               key={id}
               type="button"
               onClick={() => onChange(id)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                 mode === id
                   ? "bg-zinc-900 text-white"
                   : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
@@ -32,20 +33,30 @@ export function TransactionColorModeControl({ mode, onChange }: Props) {
           ),
         )}
       </div>
-      <ul className="mt-1 flex flex-col gap-1">
+      <ul className="flex flex-col gap-0.5">
         {config.legend.map((item) => (
           <li
             key={item.label}
-            className="flex items-center gap-2 text-xs text-zinc-700"
+            className="flex items-center gap-2 text-[11px] text-zinc-700"
           >
             <span
-              className="size-3 rounded-full border border-white shadow"
+              className="size-2.5 shrink-0 rounded-full border border-white shadow"
               style={{ backgroundColor: item.color }}
             />
             {item.label}
           </li>
         ))}
       </ul>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex flex-col gap-1.5">{body}</div>;
+  }
+
+  return (
+    <div className="flex w-full max-w-full flex-col gap-2 rounded-lg border border-zinc-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:max-w-xs">
+      {body}
     </div>
   );
 }
