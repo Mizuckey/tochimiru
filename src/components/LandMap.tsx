@@ -422,29 +422,25 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
           )}
         </Map>
 
-        <div className="absolute right-2 top-2 z-10 hidden sm:right-3 sm:top-3 lg:block">
+        <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3">
           <BaseMapControl baseMap={baseMap} onChange={setBaseMap} />
         </div>
 
-        <div className="absolute left-2 right-2 top-2 z-10 flex flex-col gap-2 sm:left-3 sm:right-3 sm:top-3 lg:left-3 lg:right-auto lg:w-[17.5rem]">
-          <div className="flex items-stretch gap-2 lg:hidden">
-            <button
-              type="button"
-              className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white/95 px-3 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur"
-              aria-expanded={toolsOpen}
-              onClick={() => setToolsOpen((open) => !open)}
-            >
-              {toolsOpen ? "地図ツールを閉じる" : "地図ツール"}
-            </button>
-            <div className="shrink-0">
-              <BaseMapControl baseMap={baseMap} onChange={setBaseMap} />
-            </div>
-          </div>
+        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-5.5rem)] flex-col items-start gap-2 sm:left-3 sm:top-3 lg:max-w-[17.5rem]">
+          <button
+            type="button"
+            className="flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white/95 px-4 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur lg:hidden"
+            aria-expanded={toolsOpen}
+            aria-label={toolsOpen ? "表示モードを閉じる" : "表示モードを開く"}
+            onClick={() => setToolsOpen((open) => !open)}
+          >
+            {toolsOpen ? "閉じる" : "表示モード"}
+          </button>
 
           <div
-            className={`min-w-0 overflow-y-auto overscroll-contain ${
+            className={`min-w-0 w-[min(calc(100vw-1rem),17.5rem)] overflow-y-auto overscroll-contain sm:w-[min(calc(100vw-1.5rem),17.5rem)] ${
               toolsOpen ? "max-h-[min(75vh,28rem)]" : "hidden"
-            } lg:block lg:max-h-[calc(100vh-5rem)]`}
+            } lg:block lg:max-h-[calc(100vh-5rem)] lg:w-[17.5rem]`}
           >
             <MapToolsPanel
               dataMode={dataMode}

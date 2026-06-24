@@ -52,6 +52,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 - `belinda.co.jp`（ヴェリンダホームズ）
 - `sokenhousing.co.jp`（創建ハウジング）
 - `nk-housing.co.jp`（ナカムラ工務店 / NKハウジング）
+- `re.sanco.co.jp`（三交不動産ブランド「プレシア」— 伊勢エリアの分譲土地）
 
 取り込みにはSupabaseの `service_role` キーが必要です。これはサーバー/ローカルスクリプト専用の秘密鍵なので、`NEXT_PUBLIC_` を付けず、絶対にGitへコミットしないでください。
 
@@ -67,6 +68,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 npm run import:belinda-lands -- --dry-run --limit=3
 npm run import:soken-lands -- --dry-run --limit=3
 npm run import:nk-lands -- --dry-run --limit=3
+npm run import:sanco-precia-lands -- --dry-run --limit=3
 ```
 
 Supabaseへ取り込み:
@@ -75,6 +77,7 @@ Supabaseへ取り込み:
 npm run import:belinda-lands
 npm run import:soken-lands
 npm run import:nk-lands
+npm run import:sanco-precia-lands
 
 # まとめて実行
 npm run import:lands
@@ -83,6 +86,7 @@ npm run import:lands
 npm run import:lands -- --source=belinda
 npm run import:lands -- --source=soken
 npm run import:lands -- --source=nk
+npm run import:lands -- --source=sanco
 npm run import:lands -- --source=all --dry-run
 ```
 
@@ -109,7 +113,7 @@ NEXT_PUBLIC_SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 ```
 
-手動実行では `source`（`all` / `belinda` / `soken` / `nk`）と `dry_run` を選べます。`dry_run=true` の場合はSupabaseへ書き込みません。
+手動実行では `source`（`all` / `belinda` / `soken` / `nk` / `sanco`）と `dry_run` を選べます。`dry_run=true` の場合はSupabaseへ書き込みません。
 
 ## 不動産情報ライブラリから取引価格を取り込む
 
@@ -176,8 +180,10 @@ src/
     lands-repository.ts# 土地取得（Supabase / フォールバック）
   types/               # 型定義
 scripts/
-  import-belinda-lands.mjs # ヴェリンダホームズからの取り込み
-  import-soken-lands.mjs   # 創建ハウジングからの取り込み
+  import-belinda-lands.mjs      # ヴェリンダホームズからの取り込み
+  import-soken-lands.mjs        # 創建ハウジングからの取り込み
+  import-nk-lands.mjs           # NKハウジングからの取り込み
+  import-sanco-precia-lands.mjs # 三交不動産プレシア（伊勢分譲土地）からの取り込み
 supabase/
   migrations/          # スキーマ・RLS
   seed.sql             # 初期データ

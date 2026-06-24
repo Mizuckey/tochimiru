@@ -9,6 +9,7 @@ const scripts = {
   belinda: "import:belinda-lands",
   soken: "import:soken-lands",
   nk: "import:nk-lands",
+  sanco: "import:sanco-precia-lands",
 };
 
 const targets =
