@@ -33,6 +33,8 @@ export type LandListing = {
   imageUrl?: string;
   /** 取得元サイト内のID */
   externalId?: string;
+  /** 座標を手動修正済みか */
+  latLngOverridden?: boolean;
 };
 
 export type HazardLayerId =
@@ -81,4 +83,5 @@ export type LandRow = {
   source_url: string | null;
   image_url: string | null;
   external_id: string | null;
+  lat_lng_overridden: boolean | null;
 };

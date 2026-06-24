@@ -66,6 +66,8 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
   realtime: { transport: WebSocket },
 });
 
+await preserveOverriddenCoordinates(supabase, lands);
+
 const { error } = await supabase.from("lands").upsert(lands, {
   onConflict: "id",
 });
@@ -75,6 +77,30 @@ if (error) {
 }
 
 console.log(`Imported ${lands.length} lands into Supabase.`);
+
+async function preserveOverriddenCoordinates(supabase, lands) {
+  const ids = lands.map((land) => land.id);
+  if (ids.length === 0) return;
+
+  const { data, error } = await supabase
+    .from("lands")
+    .select("id, lat, lng, lat_lng_overridden")
+    .in("id", ids)
+    .eq("lat_lng_overridden", true);
+
+  if (error) {
+    throw new Error(`Supabase coordinate override check failed: ${error.message}`);
+  }
+
+  const overriddenById = new Map(data.map((row) => [row.id, row]));
+  for (const land of lands) {
+    const overridden = overriddenById.get(land.id);
+    if (!overridden) continue;
+    land.lat = overridden.lat;
+    land.lng = overridden.lng;
+    land.lat_lng_overridden = true;
+  }
+}
 
 async function fetchDetailUrls() {
   const html = await fetchText(LIST_URL);

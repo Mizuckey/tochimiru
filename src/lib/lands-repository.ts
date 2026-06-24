@@ -24,6 +24,7 @@ function rowToLand(row: LandRow): LandListing {
     sourceUrl: row.source_url ?? undefined,
     imageUrl: row.image_url ?? undefined,
     externalId: row.external_id ?? undefined,
+    latLngOverridden: row.lat_lng_overridden ?? undefined,
   };
 }
 
@@ -43,7 +44,7 @@ export async function getLands(): Promise<LandListing[]> {
   const { data, error } = await supabase
     .from("lands")
     .select(
-      "id, name, address, lat, lng, price, area_sqm, memo, elevation, school_elementary, school_junior_high, tsunami_risk, source_site, source_url, image_url, external_id",
+      "id, name, address, lat, lng, price, area_sqm, memo, elevation, school_elementary, school_junior_high, tsunami_risk, source_site, source_url, image_url, external_id, lat_lng_overridden",
     )
     .order("price", { ascending: true });
 

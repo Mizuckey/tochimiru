@@ -6,6 +6,8 @@ import { resolvedJuniorHighForLand } from "@/lib/isuzu-junior-high-district";
 type Props = {
   land: LandListing | null;
   onClose: () => void;
+  onEdit?: (land: LandListing) => void;
+  onMovePin?: (land: LandListing) => void;
 };
 
 const TSUNAMI_LABEL: Record<TsunamiRisk, { text: string; className: string }> = {
@@ -165,7 +167,7 @@ function DetailBody({ land }: { land: LandListing }) {
   );
 }
 
-export function LandDetailPanel({ land, onClose }: Props) {
+export function LandDetailPanel({ land, onClose, onEdit, onMovePin }: Props) {
   if (!land) {
     return (
       <aside className="hidden w-72 shrink-0 flex-col border-l border-zinc-200 bg-white p-4 xl:w-80 lg:flex">
@@ -201,17 +203,37 @@ export function LandDetailPanel({ land, onClose }: Props) {
             aria-hidden
           />
           <div className="flex items-start justify-between gap-2">
-            <h2 className="text-base font-semibold text-zinc-900 sm:text-lg">
+            <h2 className="min-w-0 flex-1 text-base font-semibold text-zinc-900 sm:text-lg">
               {land.name}
             </h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="-mr-1 min-h-11 min-w-11 rounded-lg text-lg text-zinc-500 hover:bg-zinc-100 lg:min-h-0 lg:min-w-0 lg:px-2 lg:py-1 lg:text-sm"
-              aria-label="閉じる"
-            >
-              ×
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              {onMovePin && (
+                <button
+                  type="button"
+                  onClick={() => onMovePin(land)}
+                  className="min-h-11 rounded-lg px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-100 lg:min-h-0 lg:px-2 lg:py-1"
+                >
+                  ピン位置修正
+                </button>
+              )}
+              {land.sourceSite === "manual" && onEdit && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(land)}
+                  className="min-h-11 rounded-lg px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-100 lg:min-h-0 lg:px-2 lg:py-1"
+                >
+                  編集
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="-mr-1 min-h-11 min-w-11 rounded-lg text-lg text-zinc-500 hover:bg-zinc-100 lg:min-h-0 lg:min-w-0 lg:px-2 lg:py-1 lg:text-sm"
+                aria-label="閉じる"
+              >
+                ×
+              </button>
+            </div>
           </div>
         </div>
 

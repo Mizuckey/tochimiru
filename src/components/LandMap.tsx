@@ -74,6 +74,9 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
     lat: number;
     lng: number;
   } | null>(null);
+  const [editingLand, setEditingLand] = useState<LandListing | null>(null);
+  const [movingPinLand, setMovingPinLand] = useState<LandListing | null>(null);
+  const [savingPinLocation, setSavingPinLocation] = useState(false);
   const [manualLands, setManualLands] = useState<LandListing[]>([]);
 
   const mapRef = useRef<MapRef | null>(null);
@@ -107,7 +110,8 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
     [transactionLocationGroups, selectedTransaction],
   );
 
-  const manualFormOpen = dataMode === "listings" && draftLandLocation != null;
+  const manualFormOpen =
+    dataMode === "listings" && (draftLandLocation != null || editingLand != null);
   const detailOpen =
     manualFormOpen ||
     (dataMode === "listings"
@@ -169,6 +173,8 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
     setSelectedTransaction(null);
     setAddingLand(false);
     setDraftLandLocation(null);
+    setEditingLand(null);
+    setMovingPinLand(null);
   }, []);
 
   const toggleHazard = useCallback((layerId: HazardLayerId) => {
@@ -195,10 +201,57 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
     setSelectedLand(null);
     setSelectedTransaction(null);
     setDraftLandLocation(null);
+    setEditingLand(null);
+    setMovingPinLand(null);
+  }, []);
+
+  const updateLocalLand = useCallback((land: LandListing) => {
+    setManualLands((current) => {
+      const withoutUpdated = current.filter((item) => item.id !== land.id);
+      return [...withoutUpdated, land];
+    });
+    setSelectedLand(land);
   }, []);
 
   const handleMapClick = useCallback(
-    (event: MapMouseEvent) => {
+    async (event: MapMouseEvent) => {
+      if (dataMode === "listings" && movingPinLand) {
+        setSavingPinLocation(true);
+        try {
+          const response = await fetch("/api/lands", {
+            method: "PATCH",
+            headers: {
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              id: movingPinLand.id,
+              lat: event.lngLat.lat,
+              lng: event.lngLat.lng,
+            }),
+          });
+          const result = (await response.json()) as {
+            land?: LandListing;
+            error?: string;
+          };
+
+          if (!response.ok || !result.land) {
+            throw new Error(result.error ?? "ピン位置の保存に失敗しました。");
+          }
+
+          updateLocalLand(result.land);
+          setMovingPinLand(null);
+        } catch (error) {
+          window.alert(
+            error instanceof Error
+              ? error.message
+              : "ピン位置の保存に失敗しました。",
+          );
+        } finally {
+          setSavingPinLocation(false);
+        }
+        return;
+      }
+
       if (dataMode === "listings" && addingLand) {
         setDraftLandLocation({
           lat: event.lngLat.lat,
@@ -206,13 +259,15 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
         });
         setSelectedLand(null);
         setSelectedTransaction(null);
+        setEditingLand(null);
+        setMovingPinLand(null);
         setToolsOpen(false);
         return;
       }
 
       closeDetail();
     },
-    [addingLand, closeDetail, dataMode],
+    [addingLand, closeDetail, dataMode, movingPinLand, updateLocalLand],
   );
 
   const handleAddLandClick = useCallback(() => {
@@ -220,28 +275,40 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
     setSelectedLand(null);
     setSelectedTransaction(null);
     setDraftLandLocation(null);
+    setEditingLand(null);
+    setMovingPinLand(null);
     setAddingLand((value) => !value);
   }, []);
 
-  const handleManualLandCreated = useCallback((land: LandListing) => {
-    setManualLands((current) => [...current, land]);
-    setSelectedLand(land);
+  const handleManualLandSaved = useCallback((land: LandListing) => {
+    updateLocalLand(land);
     setDraftLandLocation(null);
+    setEditingLand(null);
+    setMovingPinLand(null);
     setAddingLand(false);
-  }, []);
+  }, [updateLocalLand]);
 
-  const headerSubtitle =
-    dataMode === "listings"
-      ? addingLand
-        ? "地図をタップして土地を追加"
-        : `伊勢市 — 売地 ${visibleLands.length} 件`
-      : marketTransactions.length === 0
-        ? "五十鈴川駅周辺 — 取引事例なし"
-        : mappableTransactions.length < marketTransactions.length
-          ? `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件（地図 ${transactionLocationGroups.length} か所）`
-          : transactionLocationGroups.length < mappableTransactions.length
-            ? `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件（地図 ${transactionLocationGroups.length} か所）`
-            : `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件`;
+  const headerSubtitle = (() => {
+    if (dataMode === "listings") {
+      if (savingPinLocation) return "ピン位置を保存中...";
+      if (movingPinLand) return "新しいピン位置をタップ";
+      if (addingLand) return "地図をタップして土地を追加";
+      return `伊勢市 — 売地 ${visibleLands.length} 件`;
+    }
+
+    if (marketTransactions.length === 0) {
+      return "五十鈴川駅周辺 — 取引事例なし";
+    }
+
+    if (
+      mappableTransactions.length < marketTransactions.length ||
+      transactionLocationGroups.length < mappableTransactions.length
+    ) {
+      return `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件（地図 ${transactionLocationGroups.length} か所）`;
+    }
+
+    return `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件`;
+  })();
 
   if (!mapboxToken) {
     return (
@@ -357,6 +424,8 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
                   e.originalEvent.stopPropagation();
                   setSelectedLand(land);
                   setDraftLandLocation(null);
+                  setEditingLand(null);
+                  setMovingPinLand(null);
                   setAddingLand(false);
                   setToolsOpen(false);
                 }}
@@ -585,16 +654,33 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
 
       {manualFormOpen ? (
         <ManualLandForm
-          lat={draftLandLocation.lat}
-          lng={draftLandLocation.lng}
+          lat={editingLand?.lat ?? draftLandLocation!.lat}
+          lng={editingLand?.lng ?? draftLandLocation!.lng}
+          land={editingLand ?? undefined}
           onCancel={() => {
             setDraftLandLocation(null);
+            setEditingLand(null);
             setAddingLand(false);
           }}
-          onCreated={handleManualLandCreated}
+          onSaved={handleManualLandSaved}
         />
       ) : dataMode === "listings" ? (
-        <LandDetailPanel land={selectedLand} onClose={closeDetail} />
+        <LandDetailPanel
+          land={selectedLand}
+          onClose={closeDetail}
+          onEdit={(land) => {
+            setEditingLand(land);
+            setAddingLand(false);
+            setDraftLandLocation(null);
+            setMovingPinLand(null);
+          }}
+          onMovePin={(land) => {
+            setMovingPinLand(land);
+            setAddingLand(false);
+            setDraftLandLocation(null);
+            setEditingLand(null);
+          }}
+        />
       ) : (
         <MarketTransactionDetailPanel
           transaction={selectedTransaction}

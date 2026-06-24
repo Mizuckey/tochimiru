@@ -7,20 +7,28 @@ import type { LandListing } from "@/types/land";
 type Props = {
   lat: number;
   lng: number;
+  land?: LandListing;
   onCancel: () => void;
-  onCreated: (land: LandListing) => void;
+  onSaved: (land: LandListing) => void;
 };
 
 const FIELD_CLASS =
   "w-full rounded-lg border border-zinc-200 px-3 py-2 text-zinc-900 placeholder:text-zinc-400";
 
-export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
-  const [price, setPrice] = useState("");
-  const [areaSqm, setAreaSqm] = useState("");
-  const [elevation, setElevation] = useState("");
-  const [sourceUrl, setSourceUrl] = useState("");
+export function ManualLandForm({ lat, lng, land, onCancel, onSaved }: Props) {
+  const isEditing = land != null;
+  const [name, setName] = useState(land?.name ?? "");
+  const [address, setAddress] = useState(land?.address ?? "");
+  const [price, setPrice] = useState(
+    land?.price != null ? String(land.price) : "",
+  );
+  const [areaSqm, setAreaSqm] = useState(
+    land?.areaSqm != null ? String(land.areaSqm) : "",
+  );
+  const [elevation, setElevation] = useState(
+    land?.elevation != null ? String(land.elevation) : "",
+  );
+  const [sourceUrl, setSourceUrl] = useState(land?.sourceUrl ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,11 +44,12 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
 
     try {
       const response = await fetch("/api/lands", {
-        method: "POST",
+        method: isEditing ? "PATCH" : "POST",
         headers: {
           "content-type": "application/json",
         },
         body: JSON.stringify({
+          id: land?.id,
           name,
           address,
           lat,
@@ -58,13 +67,20 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
       };
 
       if (!response.ok || !result.land) {
-        throw new Error(result.error ?? "土地の登録に失敗しました。");
+        throw new Error(
+          result.error ??
+            (isEditing ? "土地の更新に失敗しました。" : "土地の登録に失敗しました。"),
+        );
       }
 
-      onCreated(result.land);
+      onSaved(result.land);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "土地の登録に失敗しました。",
+        err instanceof Error
+          ? err.message
+          : isEditing
+            ? "土地の更新に失敗しました。"
+            : "土地の登録に失敗しました。",
       );
     } finally {
       setSaving(false);
@@ -76,7 +92,7 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
       <button
         type="button"
         className="fixed inset-0 z-20 bg-black/35 lg:hidden"
-        aria-label="土地登録を閉じる"
+        aria-label={isEditing ? "土地編集を閉じる" : "土地登録を閉じる"}
         onClick={onCancel}
       />
 
@@ -84,7 +100,7 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
         className="fixed inset-x-0 bottom-0 z-30 flex max-h-[min(72vh,38rem)] flex-col overflow-hidden rounded-t-2xl border-t border-zinc-200 bg-white shadow-2xl lg:static lg:z-auto lg:max-h-none lg:w-72 lg:shrink-0 lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none xl:w-80"
         role="dialog"
         aria-modal="true"
-        aria-label="土地を登録"
+        aria-label={isEditing ? "土地を編集" : "土地を登録"}
       >
         <div className="shrink-0 border-b border-zinc-100 px-4 pb-2 pt-3 lg:border-0 lg:pt-4">
           <div
@@ -94,7 +110,7 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
           <div className="flex items-start justify-between gap-2">
             <div>
               <h2 className="text-base font-semibold text-zinc-900 sm:text-lg">
-                土地を登録
+                {isEditing ? "土地を編集" : "土地を登録"}
               </h2>
               <p className="mt-1 text-xs text-zinc-500">{coordinateLabel}</p>
             </div>
@@ -193,7 +209,7 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
               disabled={saving}
               className="min-h-11 flex-1 rounded-lg bg-zinc-900 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? "保存中..." : "保存する"}
+              {saving ? "保存中..." : isEditing ? "更新する" : "保存する"}
             </button>
             <button
               type="button"

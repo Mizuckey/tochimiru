@@ -37,6 +37,7 @@ npm run dev
    - `supabase/migrations/0002_add_import_fields_to_lands.sql`（取得元URL・面積など）
    - `supabase/migrations/0003_add_image_url_to_lands.sql`（取得元サイトの代表画像URL）
    - `supabase/migrations/0004_remove_seed_lands.sql`（手入力シードの削除・任意）
+   - `supabase/migrations/0007_add_lat_lng_override_to_lands.sql`（手動修正したピン位置の保護）
 3. Settings → API から URL と anon key を取得し `.env.local` に設定
 
 ```bash
@@ -48,7 +49,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 
 ## スマホから土地を手動登録する
 
-地図右上の **土地を追加** を押して地点をタップすると、土地情報を登録できます。所在地を空にした場合は、名前と同じ値で保存します。
+地図右上の **土地を追加** を押して地点をタップすると、土地情報を登録できます。所在地を空にした場合は、名前と同じ値で保存します。手動追加した土地は、詳細パネルの **編集** から内容を更新できます。
+
+HPから取得した土地も含め、詳細パネルの **ピン位置修正** を押して地図上の新しい地点をタップすると、ピン位置を保存できます。保存した座標は `lat_lng_overridden` で保護され、次回の外部サイト取り込みでも上書きされません。
 
 `.env.local` と Vercel の Environment Variables に追加:
 
