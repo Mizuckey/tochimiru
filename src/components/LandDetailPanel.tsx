@@ -31,6 +31,8 @@ function DetailBody({ land }: { land: LandListing }) {
   const juniorHighInferred =
     juniorHigh != null && land.schoolDistrict?.juniorHigh == null;
   const showSchoolDistrict = elementary != null || juniorHigh != null;
+  const sourceLinkLabel =
+    land.sourceSite === "manual" ? "物件ページ" : (land.sourceSite ?? "物件ページ");
 
   return (
     <>
@@ -66,7 +68,7 @@ function DetailBody({ land }: { land: LandListing }) {
           </Row>
         )}
 
-        <Row label="標高">
+        <Row label="海抜">
           {land.elevation !== undefined ? `${land.elevation} m` : "—"}
         </Row>
 
@@ -79,15 +81,13 @@ function DetailBody({ land }: { land: LandListing }) {
           </Row>
         )}
 
-        <Row label="津波リスク">
-          {land.tsunamiRisk ? (
+        {land.tsunamiRisk && (
+          <Row label="津波リスク">
             <span className={TSUNAMI_LABEL[land.tsunamiRisk].className}>
               {TSUNAMI_LABEL[land.tsunamiRisk].text}
             </span>
-          ) : (
-            "—"
-          )}
-        </Row>
+          </Row>
+        )}
 
         <Row label="学区">
           {showSchoolDistrict ? (
@@ -119,10 +119,12 @@ function DetailBody({ land }: { land: LandListing }) {
           )}
         </Row>
 
-        <div>
-          <dt className="text-zinc-500">メモ</dt>
-          <dd className="text-zinc-800">{land.memo}</dd>
-        </div>
+        {land.memo && (
+          <div>
+            <dt className="text-zinc-500">メモ</dt>
+            <dd className="text-zinc-800">{land.memo}</dd>
+          </div>
+        )}
 
         {land.imageUrl && (
           <Row label="画像">
@@ -138,14 +140,14 @@ function DetailBody({ land }: { land: LandListing }) {
         )}
 
         {land.sourceUrl && (
-          <Row label="取得元">
+          <Row label="不動産情報リンク">
             <a
               href={land.sourceUrl}
               target="_blank"
               rel="noreferrer"
               className="text-sky-700 underline-offset-2 hover:underline"
             >
-              {land.sourceSite ?? "物件ページ"}
+              {sourceLinkLabel}
             </a>
             {land.externalId && (
               <span className="ml-1 text-xs text-zinc-400">

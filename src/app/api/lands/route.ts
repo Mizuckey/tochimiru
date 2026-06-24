@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
-import type { LandListing, LandRow, TsunamiRisk } from "@/types/land";
+import type { LandListing, LandRow } from "@/types/land";
 
 type CreateLandRequest = {
   name?: unknown;
@@ -10,12 +10,9 @@ type CreateLandRequest = {
   lng?: unknown;
   price?: unknown;
   areaSqm?: unknown;
-  memo?: unknown;
   elevation?: unknown;
-  tsunamiRisk?: unknown;
+  sourceUrl?: unknown;
 };
-
-const TSUNAMI_RISKS = new Set<string>(["low", "medium", "high"]);
 
 function rowToLand(row: LandRow): LandListing {
   return {
@@ -61,15 +58,6 @@ function integerValue(value: unknown): number | null {
 }
 
 export async function POST(request: NextRequest) {
-  const writePassword = process.env.LAND_WRITE_PASSWORD?.trim();
-  const providedPassword = request.headers
-    .get("x-tochimiru-write-password")
-    ?.trim();
-
-  if (!writePassword || providedPassword !== writePassword) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
@@ -93,10 +81,6 @@ export async function POST(request: NextRequest) {
   const price = integerValue(body.price);
   const areaSqm = numberValue(body.areaSqm);
   const elevation = numberValue(body.elevation);
-  const tsunamiRisk: TsunamiRisk | null =
-    typeof body.tsunamiRisk === "string" && TSUNAMI_RISKS.has(body.tsunamiRisk)
-      ? (body.tsunamiRisk as TsunamiRisk)
-      : null;
 
   if (!name || lat == null || lng == null || price == null) {
     return NextResponse.json(
@@ -121,15 +105,16 @@ export async function POST(request: NextRequest) {
     .insert({
       id: `manual-${crypto.randomUUID()}`,
       name,
-      address: optionalText(body.address),
+      address: optionalText(body.address) ?? name,
       lat,
       lng,
       price,
       area_sqm: areaSqm,
-      memo: optionalText(body.memo) ?? "",
+      memo: "",
       elevation,
-      tsunami_risk: tsunamiRisk,
+      tsunami_risk: null,
       source_site: "manual",
+      source_url: optionalText(body.sourceUrl),
       fetched_at: new Date().toISOString(),
     })
     .select(

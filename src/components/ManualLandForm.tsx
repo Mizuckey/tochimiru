@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import type { LandListing, TsunamiRisk } from "@/types/land";
+import type { LandListing } from "@/types/land";
 
 type Props = {
   lat: number;
@@ -11,25 +11,16 @@ type Props = {
   onCreated: (land: LandListing) => void;
 };
 
-const TSUNAMI_OPTIONS: { value: TsunamiRisk; label: string }[] = [
-  { value: "low", label: "低" },
-  { value: "medium", label: "中" },
-  { value: "high", label: "高" },
-];
+const FIELD_CLASS =
+  "w-full rounded-lg border border-zinc-200 px-3 py-2 text-zinc-900 placeholder:text-zinc-400";
 
 export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
-  const [password, setPassword] = useState(() =>
-    typeof window === "undefined"
-      ? ""
-      : (window.localStorage.getItem("tochimiru-land-write-password") ?? ""),
-  );
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [price, setPrice] = useState("");
   const [areaSqm, setAreaSqm] = useState("");
   const [elevation, setElevation] = useState("");
-  const [tsunamiRisk, setTsunamiRisk] = useState("");
-  const [memo, setMemo] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +39,6 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-tochimiru-write-password": password,
         },
         body: JSON.stringify({
           name,
@@ -58,8 +48,7 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
           price: Number(price),
           areaSqm: areaSqm ? Number(areaSqm) : undefined,
           elevation: elevation ? Number(elevation) : undefined,
-          tsunamiRisk: tsunamiRisk || undefined,
-          memo,
+          sourceUrl,
         }),
       });
 
@@ -72,7 +61,6 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
         throw new Error(result.error ?? "土地の登録に失敗しました。");
       }
 
-      window.localStorage.setItem("tochimiru-land-write-password", password);
       onCreated(result.land);
     } catch (err) {
       setError(
@@ -125,24 +113,13 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
           onSubmit={handleSubmit}
           className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pb-6 text-sm lg:pb-4"
         >
-          <Field label="管理パスコード">
-            <input
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              type="password"
-              required
-              autoComplete="current-password"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2"
-            />
-          </Field>
-
           <Field label="名前">
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
               placeholder="伊勢市○○町"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2"
+              className={FIELD_CLASS}
             />
           </Field>
 
@@ -155,7 +132,7 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
               step="1"
               required
               inputMode="numeric"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2"
+              className={FIELD_CLASS}
             />
           </Field>
 
@@ -163,8 +140,8 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
             <input
               value={address}
               onChange={(event) => setAddress(event.target.value)}
-              placeholder="任意"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2"
+              placeholder="未入力なら名前と同じ"
+              className={FIELD_CLASS}
             />
           </Field>
 
@@ -177,44 +154,30 @@ export function ManualLandForm({ lat, lng, onCancel, onCreated }: Props) {
                 min="0"
                 step="0.01"
                 inputMode="decimal"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2"
+                className={FIELD_CLASS}
               />
             </Field>
 
-            <Field label="標高（m）">
+            <Field label="海抜（m）">
               <input
                 value={elevation}
                 onChange={(event) => setElevation(event.target.value)}
                 type="number"
                 step="0.1"
                 inputMode="decimal"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2"
+                className={FIELD_CLASS}
               />
             </Field>
           </div>
 
-          <Field label="津波リスク">
-            <select
-              value={tsunamiRisk}
-              onChange={(event) => setTsunamiRisk(event.target.value)}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2"
-            >
-              <option value="">未設定</option>
-              {TSUNAMI_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="メモ">
-            <textarea
-              value={memo}
-              onChange={(event) => setMemo(event.target.value)}
-              rows={3}
-              placeholder="道幅、雰囲気、気になる点など"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2"
+          <Field label="不動産情報リンク">
+            <input
+              value={sourceUrl}
+              onChange={(event) => setSourceUrl(event.target.value)}
+              type="url"
+              inputMode="url"
+              placeholder="https://..."
+              className={FIELD_CLASS}
             />
           </Field>
 

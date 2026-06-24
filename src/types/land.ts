@@ -19,7 +19,7 @@ export type LandListing = {
   /** 土地面積（㎡） */
   areaSqm?: number;
   memo: string;
-  /** 標高（m）。Phase 1 は手入力（将来は国土地理院標高APIで取得予定） */
+  /** 海抜（m）。DBカラム名は既存互換のため elevation のまま */
   elevation?: number;
   /** 学区 */
   schoolDistrict?: SchoolDistrict;
