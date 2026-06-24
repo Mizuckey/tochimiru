@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, {
   Layer,
@@ -7,6 +8,7 @@ import Map, {
   NavigationControl,
   Popup,
   Source,
+  type MapMouseEvent,
   type MapRef,
 } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -23,6 +25,7 @@ import {
 import type { HazardLayerId, LandListing } from "@/types/land";
 import type { MapDataMode, MarketTransaction } from "@/types/market-transaction";
 import { LandDetailPanel } from "@/components/LandDetailPanel";
+import { ManualLandForm } from "@/components/ManualLandForm";
 import { MarketTransactionDetailPanel } from "@/components/MarketTransactionDetailPanel";
 import { BaseMapControl } from "@/components/BaseMapControl";
 import { MapToolsPanel } from "@/components/MapToolsPanel";
@@ -66,8 +69,21 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
   const [highlightIsuzuDistrict, setHighlightIsuzuDistrict] = useState(false);
   const [highlightShujuuDistrict, setHighlightShujuuDistrict] = useState(false);
   const [highlightShuudouDistrict, setHighlightShuudouDistrict] = useState(false);
+  const [addingLand, setAddingLand] = useState(false);
+  const [draftLandLocation, setDraftLandLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [manualLands, setManualLands] = useState<LandListing[]>([]);
 
   const mapRef = useRef<MapRef | null>(null);
+
+  const visibleLands = useMemo(() => {
+    const byId = new globalThis.Map<string, LandListing>();
+    for (const land of lands) byId.set(land.id, land);
+    for (const land of manualLands) byId.set(land.id, land);
+    return Array.from(byId.values());
+  }, [lands, manualLands]);
 
   const mappableTransactions = useMemo(
     () =>
@@ -91,8 +107,12 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
     [transactionLocationGroups, selectedTransaction],
   );
 
+  const manualFormOpen = dataMode === "listings" && draftLandLocation != null;
   const detailOpen =
-    dataMode === "listings" ? selectedLand != null : selectedTransaction != null;
+    manualFormOpen ||
+    (dataMode === "listings"
+      ? selectedLand != null
+      : selectedTransaction != null);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -128,11 +148,11 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
 
   const landColors = useMemo(() => {
     const colors: Record<string, string> = {};
-    for (const land of lands) {
+    for (const land of visibleLands) {
       colors[land.id] = getLandListingMarkerColor(land);
     }
     return colors;
-  }, [lands]);
+  }, [visibleLands]);
 
   const transactionColors = useMemo(() => {
     const colors: Record<string, string> = {};
@@ -147,6 +167,8 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
     setDataMode(mode);
     setSelectedLand(null);
     setSelectedTransaction(null);
+    setAddingLand(false);
+    setDraftLandLocation(null);
   }, []);
 
   const toggleHazard = useCallback((layerId: HazardLayerId) => {
@@ -172,11 +194,47 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
   const closeDetail = useCallback(() => {
     setSelectedLand(null);
     setSelectedTransaction(null);
+    setDraftLandLocation(null);
+  }, []);
+
+  const handleMapClick = useCallback(
+    (event: MapMouseEvent) => {
+      if (dataMode === "listings" && addingLand) {
+        setDraftLandLocation({
+          lat: event.lngLat.lat,
+          lng: event.lngLat.lng,
+        });
+        setSelectedLand(null);
+        setSelectedTransaction(null);
+        setToolsOpen(false);
+        return;
+      }
+
+      closeDetail();
+    },
+    [addingLand, closeDetail, dataMode],
+  );
+
+  const handleAddLandClick = useCallback(() => {
+    setDataMode("listings");
+    setSelectedLand(null);
+    setSelectedTransaction(null);
+    setDraftLandLocation(null);
+    setAddingLand((value) => !value);
+  }, []);
+
+  const handleManualLandCreated = useCallback((land: LandListing) => {
+    setManualLands((current) => [...current, land]);
+    setSelectedLand(land);
+    setDraftLandLocation(null);
+    setAddingLand(false);
   }, []);
 
   const headerSubtitle =
     dataMode === "listings"
-      ? `伊勢市 — 売地 ${lands.length} 件`
+      ? addingLand
+        ? "地図をタップして土地を追加"
+        : `伊勢市 — 売地 ${visibleLands.length} 件`
       : marketTransactions.length === 0
         ? "五十鈴川駅周辺 — 取引事例なし"
         : mappableTransactions.length < marketTransactions.length
@@ -255,7 +313,7 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
           style={{ width: "100%", height: "100%" }}
           mapStyle={BASE_MAPS[baseMap].style}
           onLoad={applyJapaneseLabels}
-          onClick={closeDetail}
+          onClick={handleMapClick}
         >
           <NavigationControl position="bottom-right" />
 
@@ -281,7 +339,7 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
           ))}
 
           {dataMode === "listings" &&
-            lands.map((land) => {
+            visibleLands.map((land) => {
               const inShujuu = isInShujuuElementaryForLand(land);
               const inShuudou = isInShuudouElementaryForLand(land);
               const inIsuzu =
@@ -298,6 +356,8 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
                 onClick={(e) => {
                   e.originalEvent.stopPropagation();
                   setSelectedLand(land);
+                  setDraftLandLocation(null);
+                  setAddingLand(false);
                   setToolsOpen(false);
                 }}
               >
@@ -317,6 +377,21 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
               </Marker>
             );
             })}
+
+          {draftLandLocation && (
+            <Marker
+              latitude={draftLandLocation.lat}
+              longitude={draftLandLocation.lng}
+              anchor="bottom"
+            >
+              <div
+                className="flex size-6 items-center justify-center rounded-full border-2 border-zinc-900 bg-white shadow-lg"
+                aria-label="登録予定地"
+              >
+                <span className="size-2 rounded-full bg-zinc-900" />
+              </div>
+            </Marker>
+          )}
 
           {dataMode === "reinfolib" &&
             transactionLocationGroups.map((group) => {
@@ -426,6 +501,21 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
           <BaseMapControl baseMap={baseMap} onChange={setBaseMap} />
         </div>
 
+        <div className="absolute right-2 top-14 z-10 sm:right-3 sm:top-16">
+          <button
+            type="button"
+            aria-pressed={addingLand}
+            onClick={handleAddLandClick}
+            className={`min-h-11 rounded-lg border px-3 text-xs font-semibold shadow-sm backdrop-blur ${
+              addingLand
+                ? "border-zinc-900 bg-zinc-900 text-white"
+                : "border-zinc-200 bg-white/95 text-zinc-800 hover:bg-zinc-100"
+            }`}
+          >
+            {addingLand ? "追加中" : "土地を追加"}
+          </button>
+        </div>
+
         <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-5.5rem)] flex-col items-start gap-2 sm:left-3 sm:top-3 lg:max-w-[17.5rem]">
           <button
             type="button"
@@ -464,20 +554,46 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
         </div>
 
         <header
-          className={`pointer-events-none absolute left-2 z-10 max-w-[calc(100%-6rem)] rounded-lg bg-white/90 px-2.5 py-1.5 shadow-sm backdrop-blur sm:left-3 sm:px-3 sm:py-2 ${
-            detailOpen && !isDesktop
+          className={`pointer-events-none absolute left-2 z-10 max-w-[calc(100%-6rem)] rounded-xl bg-white/90 px-2 py-1.5 shadow-sm backdrop-blur sm:left-3 sm:px-2.5 sm:py-2 ${
+            manualFormOpen && !isDesktop
+              ? "bottom-[calc(min(72vh,38rem)+0.5rem)]"
+              : detailOpen && !isDesktop
               ? "bottom-[calc(min(58vh,28rem)+0.5rem)]"
               : "bottom-2 sm:bottom-3"
           } lg:bottom-3`}
         >
-          <p className="text-xs font-semibold text-zinc-900 sm:text-sm">
-            トチミル
-          </p>
-          <p className="text-[10px] text-zinc-500 sm:text-xs">{headerSubtitle}</p>
+          <div className="flex items-center gap-2">
+            <Image
+              src="/apple-icon.png"
+              alt=""
+              width={36}
+              height={36}
+              className="size-9 rounded-lg"
+              priority
+            />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-zinc-900 sm:text-sm">
+                トチミル
+              </p>
+              <p className="truncate text-[10px] text-zinc-500 sm:text-xs">
+                {headerSubtitle}
+              </p>
+            </div>
+          </div>
         </header>
       </div>
 
-      {dataMode === "listings" ? (
+      {manualFormOpen ? (
+        <ManualLandForm
+          lat={draftLandLocation.lat}
+          lng={draftLandLocation.lng}
+          onCancel={() => {
+            setDraftLandLocation(null);
+            setAddingLand(false);
+          }}
+          onCreated={handleManualLandCreated}
+        />
+      ) : dataMode === "listings" ? (
         <LandDetailPanel land={selectedLand} onClose={closeDetail} />
       ) : (
         <MarketTransactionDetailPanel

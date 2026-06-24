@@ -13,6 +13,7 @@
 - **売地**と**不動産情報ライブラリの取引事例**を地図上で切り替え表示（ハザード重ね表示は共通）
 - 航空写真への切り替え・地図ラベルの日本語化
 - 土地データの Supabase 連携（未設定時はハードコードにフォールバック）
+- 地図上で地点を選んで、自分用の土地情報をSupabaseへ手動登録
 - ヴェリンダホームズ（伊勢市の不動産会社）から売土地データを取得してSupabaseへ取り込み
 
 ## セットアップ
@@ -28,7 +29,7 @@ npm run dev
 
 ## Supabase 連携
 
-土地データは Supabase の `lands` テーブルから取得します。**`source_site` がある行だけ**表示します（外部取り込み分のみ）。
+土地データは Supabase の `lands` テーブルから取得します。外部取り込み分と、地図上から手動登録した土地を表示します。
 
 1. [Supabase](https://supabase.com/) でプロジェクトを作成
 2. SQL Editor で以下を順に実行
@@ -43,7 +44,20 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 ```
 
-`lands` テーブルは RLS で**読み取りのみ公開**です。anon key はクライアントに露出しても問題ありませんが、書き込み機能を追加する際は別途ポリシーと認証を設計してください。
+`lands` テーブルは RLS で**読み取りのみ公開**です。anon key はクライアントに露出しても問題ありません。手動登録の書き込みは `POST /api/lands` でパスコードを確認し、サーバー側の service role key で実行します。
+
+## スマホから土地を手動登録する
+
+地図右上の **土地を追加** を押して地点をタップすると、土地情報を登録できます。自分専用の簡易保護として、画面で入力した管理パスコードをサーバー側の `LAND_WRITE_PASSWORD` と照合し、登録処理だけ `SUPABASE_SERVICE_ROLE_KEY` で実行します。
+
+`.env.local` と Vercel の Environment Variables に追加:
+
+```bash
+LAND_WRITE_PASSWORD=任意の長いパスコード
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` はサーバー専用の秘密鍵です。`NEXT_PUBLIC_` を付けず、Gitへコミットしないでください。
 
 ## 実サイトから土地データを取り込む
 

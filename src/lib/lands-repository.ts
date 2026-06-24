@@ -28,7 +28,7 @@ function rowToLand(row: LandRow): LandListing {
 }
 
 /**
- * 土地一覧を取得する（外部サイト取り込み分のみ）。
+ * 土地一覧を取得する（外部サイト取り込み分 + 手動登録分）。
  * Supabase 未設定・エラー時は空配列。
  */
 export async function getLands(): Promise<LandListing[]> {
@@ -45,7 +45,6 @@ export async function getLands(): Promise<LandListing[]> {
     .select(
       "id, name, address, lat, lng, price, area_sqm, memo, elevation, school_elementary, school_junior_high, tsunami_risk, source_site, source_url, image_url, external_id",
     )
-    .not("source_site", "is", null)
     .order("price", { ascending: true });
 
   if (error) {
