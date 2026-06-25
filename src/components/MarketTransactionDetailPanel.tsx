@@ -1,4 +1,12 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
 import type { MarketTransaction } from "@/types/market-transaction";
+import type {
+  SurfaceSoilDto,
+  SurfaceSoilResult,
+} from "@/types/jshis-surface-soil";
 import {
   priceClassificationLabel,
   transactionMapLabel,
@@ -27,7 +35,82 @@ function formatYen(value: number | null): string {
   return `${value.toLocaleString()} 円`;
 }
 
-function DetailBody({ transaction }: { transaction: MarketTransaction }) {
+type SurfaceSoilState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: SurfaceSoilDto; cache: SurfaceSoilResult["cache"] }
+  | { status: "error"; message: string };
+
+function formatFixed(value: number | null, digits: number): string {
+  if (value == null) return "—";
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
+}
+
+function SurfaceSoilSection({
+  surfaceSoil,
+}: {
+  surfaceSoil: SurfaceSoilState;
+}) {
+  if (surfaceSoil.status === "idle") {
+    return null;
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-semibold text-zinc-900">
+          地盤（J-SHIS 250mメッシュ）
+        </h3>
+        {surfaceSoil.status === "success" && (
+          <span className="rounded bg-white px-1.5 py-0.5 text-[10px] text-zinc-500">
+            {surfaceSoil.cache === "hit" ? "cache" : "live"}
+          </span>
+        )}
+      </div>
+
+      {surfaceSoil.status === "loading" && (
+        <p className="mt-2 text-sm text-zinc-500">取得中です。</p>
+      )}
+
+      {surfaceSoil.status === "error" && (
+        <p className="mt-2 text-sm text-zinc-500">
+          地盤情報を取得できませんでした。
+        </p>
+      )}
+
+      {surfaceSoil.status === "success" && (
+        <>
+          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+            <Row label="微地形区分">
+              {surfaceSoil.data.geomorphologyName ?? "—"}
+            </Row>
+            <Row label="AVS30">
+              {formatFixed(surfaceSoil.data.avs30, 1)} m/s
+            </Row>
+            <Row label="地盤増幅率（ARV）">
+              {formatFixed(surfaceSoil.data.amplificationFactor, 4)}
+            </Row>
+            <Row label="メッシュコード">{surfaceSoil.data.meshcode}</Row>
+          </dl>
+          <p className="mt-2 text-[11px] text-zinc-400">
+            出典: J-SHIS（防災科学技術研究所）。値は指定座標を含む250mメッシュの代表情報です。
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DetailBody({
+  transaction,
+  surfaceSoil,
+}: {
+  transaction: MarketTransaction;
+  surfaceSoil: SurfaceSoilState;
+}) {
   const classification = priceClassificationLabel(
     transaction.priceClassification,
   );
@@ -128,6 +211,8 @@ function DetailBody({ transaction }: { transaction: MarketTransaction }) {
         {transaction.remarks && <Row label="備考">{transaction.remarks}</Row>}
       </dl>
 
+      <SurfaceSoilSection surfaceSoil={surfaceSoil} />
+
       <p className="mt-4 text-xs text-zinc-400">
         出典:{" "}
         <a
@@ -201,6 +286,70 @@ export function MarketTransactionDetailPanel({
   onSelectTransaction,
   onClose,
 }: Props) {
+  const [surfaceSoilCache, setSurfaceSoilCache] = useState<
+    Record<string, SurfaceSoilState>
+  >({});
+  const requestedSurfaceSoilKeys = useRef(new Set<string>());
+
+  const surfaceSoilLat = transaction?.lat ?? null;
+  const surfaceSoilLng = transaction?.lng ?? null;
+  const surfaceSoilKey =
+    surfaceSoilLat != null && surfaceSoilLng != null
+      ? `${surfaceSoilLat.toFixed(6)},${surfaceSoilLng.toFixed(6)}`
+      : null;
+
+  useEffect(() => {
+    if (!transaction || !surfaceSoilKey) return;
+    if (
+      surfaceSoilCache[surfaceSoilKey] ||
+      requestedSurfaceSoilKeys.current.has(surfaceSoilKey)
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    requestedSurfaceSoilKeys.current.add(surfaceSoilKey);
+
+    const params = new URLSearchParams({
+      lat: String(surfaceSoilLat),
+      lng: String(surfaceSoilLng),
+    });
+
+    fetch(`/api/jshis/surface-soil?${params}`, {
+      signal: controller.signal,
+    })
+      .then((response) => response.json() as Promise<SurfaceSoilResult>)
+      .then((result) => {
+        setSurfaceSoilCache((prev) => ({
+          ...prev,
+          [surfaceSoilKey]: result.ok
+            ? { status: "success", data: result.data, cache: result.cache }
+            : { status: "error", message: result.error.message },
+        }));
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setSurfaceSoilCache((prev) => ({
+          ...prev,
+          [surfaceSoilKey]: {
+            status: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : "J-SHIS 表層地盤情報を取得できませんでした。",
+          },
+        }));
+      });
+
+    return () => controller.abort();
+  }, [
+    surfaceSoilCache,
+    surfaceSoilKey,
+    surfaceSoilLat,
+    surfaceSoilLng,
+    transaction,
+  ]);
+
   if (!transaction) {
     return (
       <aside className="hidden w-72 shrink-0 flex-col border-l border-zinc-200 bg-white p-4 xl:w-80 lg:flex">
@@ -217,6 +366,10 @@ export function MarketTransactionDetailPanel({
   }
 
   const title = transactionMapLabel(transaction);
+  const surfaceSoil: SurfaceSoilState =
+    surfaceSoilKey != null
+      ? surfaceSoilCache[surfaceSoilKey] ?? { status: "loading" }
+      : { status: "idle" };
 
   return (
     <>
@@ -259,7 +412,7 @@ export function MarketTransactionDetailPanel({
             selectedId={transaction.id}
             onSelect={onSelectTransaction}
           />
-          <DetailBody transaction={transaction} />
+          <DetailBody transaction={transaction} surfaceSoil={surfaceSoil} />
         </div>
       </aside>
     </>
