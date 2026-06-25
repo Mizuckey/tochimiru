@@ -1,7 +1,4 @@
-import type {
-  MapDataMode,
-  MarketTransaction,
-} from "@/types/market-transaction";
+import type { MarketTransaction } from "@/types/market-transaction";
 import {
   priceClassificationLabel,
   transactionMapLabel,
@@ -13,7 +10,6 @@ type Props = {
   transaction: MarketTransaction | null;
   locationTransactions: MarketTransaction[];
   onSelectTransaction: (transaction: MarketTransaction) => void;
-  dataMode: MapDataMode;
   onClose: () => void;
 };
 
@@ -203,13 +199,8 @@ export function MarketTransactionDetailPanel({
   transaction,
   locationTransactions,
   onSelectTransaction,
-  dataMode,
   onClose,
 }: Props) {
-  if (dataMode !== "reinfolib") {
-    return null;
-  }
-
   if (!transaction) {
     return (
       <aside className="hidden w-72 shrink-0 flex-col border-l border-zinc-200 bg-white p-4 xl:w-80 lg:flex">

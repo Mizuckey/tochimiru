@@ -7,11 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "import:belinda-lands": "node scripts/import-belinda-lands.mjs",
-    "import:soken-lands": "node scripts/import-soken-lands.mjs",
-    "import:nk-lands": "node scripts/import-nk-lands.mjs",
-    "import:sanco-precia-lands": "node scripts/import-sanco-precia-lands.mjs",
-    "import:lands": "node scripts/import-lands.mjs",
     "import:isuzugawa-prices": "node scripts/import-reinfolib-isuzugawa-prices.mjs"
   },
   "dependencies": {

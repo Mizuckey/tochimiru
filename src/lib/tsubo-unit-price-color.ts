@@ -1,4 +1,3 @@
-import type { LandListing } from "@/types/land";
 import type { MarketTransaction } from "@/types/market-transaction";
 
 /** 1坪 = 3.305785㎡（不動産表示の換算） */
@@ -37,12 +36,6 @@ function bucketColor(
   return fallback;
 }
 
-/** 掲載物件: 価格（万円）と面積（㎡）から坪単価（万円/坪） */
-export function landListingManYenPerTsubo(land: LandListing): number | undefined {
-  if (land.areaSqm == null || land.areaSqm <= 0) return undefined;
-  return (land.price * SQM_PER_TSUBO) / land.areaSqm;
-}
-
 /** 取引事例: ㎡単価（円）から坪単価（万円/坪） */
 export function transactionManYenPerTsubo(
   transaction: MarketTransaction,
@@ -50,10 +43,6 @@ export function transactionManYenPerTsubo(
   const yenPerSqm = transaction.unitPriceYenPerSqm;
   if (yenPerSqm == null || !Number.isFinite(yenPerSqm)) return undefined;
   return (yenPerSqm * SQM_PER_TSUBO) / 10_000;
-}
-
-export function getLandListingMarkerColor(land: LandListing): string {
-  return bucketColor(landListingManYenPerTsubo(land), "#dc2626");
 }
 
 export function getTransactionMarkerColor(transaction: MarketTransaction): string {

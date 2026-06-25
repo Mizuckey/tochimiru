@@ -1,6 +1,3 @@
-/** 地図の表示モード */
-export type MapDataMode = "listings" | "reinfolib";
-
 /** Supabase `market_transactions` の行（snake_case） */
 export type MarketTransactionRow = {
   id: string;

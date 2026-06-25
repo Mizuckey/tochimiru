@@ -1,27 +1,23 @@
 # トチミル（tochimiru）
 
-伊勢市の売地を地図上で見る個人開発プロジェクト。設計は [トチミル設計.md](./トチミル設計.md) を参照。
+伊勢市周辺の公的機関データを地図上で確認する個人開発プロジェクト。設計は [トチミル設計.md](./トチミル設計.md) を参照。
 
 ## 現在の実装（Phase 1）
 
-- 伊勢市エリアの土地データ（不動産会社サイトからの取り込み）
-- Mapbox 地図上のピン表示・クリックで詳細
+- 不動産情報ライブラリの取引事例を Mapbox 地図上に表示
+- 地図上のピン表示・クリックで詳細
 - 国土地理院ハザードマップの重ね表示（洪水・津波）
-- 最寄り駅と徒歩分（座標からの直線距離による推定）
-- 海抜・最寄り避難所までの距離・学区の表示
-- 指標による色分け（価格 / 駅距離 / 海抜 / 津波リスク）
-- **売地**と**不動産情報ライブラリの取引事例**を地図上で切り替え表示（ハザード重ね表示は共通）
+- 取引事例の坪単価による色分け
+- 町名リストに基づく学区の強調表示
 - 航空写真への切り替え・地図ラベルの日本語化
-- 土地データの Supabase 連携（未設定時はハードコードにフォールバック）
-- 地図上で地点を選んで、自分用の土地情報をSupabaseへ手動登録
-- ヴェリンダホームズ（伊勢市の不動産会社）から売土地データを取得してSupabaseへ取り込み
+- Supabase からの取引事例取得
 
 ## セットアップ
 
 ```bash
 npm install
 cp .env.example .env.local
-# .env.local に Mapbox トークン（と任意で Supabase）を設定
+# .env.local に Mapbox トークンと Supabase 接続情報を設定
 npm run dev
 ```
 
@@ -29,15 +25,12 @@ npm run dev
 
 ## Supabase 連携
 
-土地データは Supabase の `lands` テーブルから取得します。外部取り込み分と、地図上から手動登録した土地を表示します。
+不動産情報ライブラリの取引事例は Supabase の `market_transactions` テーブルから取得します。
 
 1. [Supabase](https://supabase.com/) でプロジェクトを作成
 2. SQL Editor で以下を順に実行
-   - `supabase/migrations/0001_create_lands.sql`（テーブル・RLS）
-   - `supabase/migrations/0002_add_import_fields_to_lands.sql`（取得元URL・面積など）
-   - `supabase/migrations/0003_add_image_url_to_lands.sql`（取得元サイトの代表画像URL）
-   - `supabase/migrations/0004_remove_seed_lands.sql`（手入力シードの削除・任意）
-   - `supabase/migrations/0007_add_lat_lng_override_to_lands.sql`（手動修正したピン位置の保護）
+   - `supabase/migrations/0005_create_market_transactions.sql`
+   - `supabase/migrations/0006_add_geocode_to_market_transactions.sql`
 3. Settings → API から URL と anon key を取得し `.env.local` に設定
 
 ```bash
@@ -45,104 +38,11 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 ```
 
-`lands` テーブルは RLS で**読み取りのみ公開**です。anon key はクライアントに露出しても問題ありません。手動登録の書き込みは `POST /api/lands` から、サーバー側の service role key で実行します。
-
-## スマホから土地を手動登録する
-
-地図右上の **土地を追加** を押して地点をタップすると、土地情報を登録できます。所在地を空にした場合は、名前と同じ値で保存します。手動追加した土地は、詳細パネルの **編集** から内容を更新できます。
-
-HPから取得した土地も含め、詳細パネルの **ピン位置修正** を押して地図上の新しい地点をタップすると、ピン位置を保存できます。保存した座標は `lat_lng_overridden` で保護され、次回の外部サイト取り込みでも上書きされません。
-
-`.env.local` と Vercel の Environment Variables に追加:
-
-```bash
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
-
-`SUPABASE_SERVICE_ROLE_KEY` はサーバー専用の秘密鍵です。`NEXT_PUBLIC_` を付けず、Gitへコミットしないでください。
-
-## 実サイトから土地データを取り込む
-
-検索上位の地場不動産会社サイトとして、以下を対象にしています。`robots.txt` で対象ページが禁止されていないことを確認したうえで、低頻度アクセス（物件ごとに待機）で取得します。
-
-- `belinda.co.jp`（ヴェリンダホームズ）
-- `sokenhousing.co.jp`（創建ハウジング）
-- `nk-housing.co.jp`（ナカムラ工務店 / NKハウジング）
-- `re.sanco.co.jp`（三交不動産ブランド「プレシア」— 伊勢エリアの分譲土地）
-
-取り込みにはSupabaseの `service_role` キーが必要です。これはサーバー/ローカルスクリプト専用の秘密鍵なので、`NEXT_PUBLIC_` を付けず、絶対にGitへコミットしないでください。
-
-`.env.local` に追加:
-
-```bash
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
-
-プレビュー（DBへ書き込まない）:
-
-```bash
-npm run import:belinda-lands -- --dry-run --limit=3
-npm run import:soken-lands -- --dry-run --limit=3
-npm run import:nk-lands -- --dry-run --limit=3
-npm run import:sanco-precia-lands -- --dry-run --limit=3
-```
-
-Supabaseへ取り込み:
-
-```bash
-npm run import:belinda-lands
-npm run import:soken-lands
-npm run import:nk-lands
-npm run import:sanco-precia-lands
-
-# まとめて実行
-npm run import:lands
-
-# 取得元を指定してまとめ実行用ラッパーを使う
-npm run import:lands -- --source=belinda
-npm run import:lands -- --source=soken
-npm run import:lands -- --source=nk
-npm run import:lands -- --source=sanco
-npm run import:lands -- --source=all --dry-run
-```
-
-取得項目:
-
-- 物件名
-- 所在地
-- 価格（万円）
-- 土地面積（㎡）
-- 交通・坪単価・公開日などのメモ
-- 取得元URL
-- 取得元サイト上の代表画像URL（画像自体は保存しない）
-- Mapbox Geocodingによる緯度経度
-
-## GitHub Actions で定期取り込み
-
-`.github/workflows/import-lands.yml` で、毎日 JST 05:20 に `npm run import:lands -- --source=all` を実行します。Actions 画面から手動実行もできます。
-
-GitHub の Repository → Settings → Secrets and variables → Actions → Repository secrets に以下を登録してください。
-
-```bash
-NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
-NEXT_PUBLIC_SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
-```
-
-手動実行では `source`（`all` / `belinda` / `soken` / `nk` / `sanco`）と `dry_run` を選べます。`dry_run=true` の場合はSupabaseへ書き込みません。
-
 ## 不動産情報ライブラリから取引価格を取り込む
 
 [不動産情報ライブラリ APIマニュアル](https://www.reinfolib.mlit.go.jp/help/apiManual/) の `XIT001`（不動産価格（取引価格・成約価格）情報取得API）を使い、五十鈴川駅周辺の取引価格・成約価格を取得します。
 
 API利用には、[API利用申請](https://www.reinfolib.mlit.go.jp/api/request/) で発行されたAPIキーが必要です。駅指定には国土数値情報（鉄道データ）のグループコードを使います。五十鈴川駅は `007892` です。
-
-Supabase SQL Editorで以下を実行してください。
-
-```text
-supabase/migrations/0005_create_market_transactions.sql
-supabase/migrations/0006_add_geocode_to_market_transactions.sql
-```
 
 `.env.local` または GitHub Actions Secrets に追加:
 
@@ -164,7 +64,7 @@ npm run import:isuzugawa-prices -- --from-year=2021 --to-year=2026
 
 取り込み時に Mapbox Geocoding で町丁目代表の緯度経度を付与します（`NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` 必須）。ジオコードをスキップする場合は `--skip-geocode` を付けてください（地図モードではピンが出ません）。
 
-地図アプリの左上「表示モード」→ **取引事例** で、ハザードと重ねて確認できます。
+地図アプリで、ハザードと重ねて確認できます。
 
 価格情報区分を指定する場合:
 
@@ -186,23 +86,16 @@ src/
   components/          # 地図・UI
   data/
     lands.ts           # 地図の初期中心座標のみ
-    stations.ts        # 駅の参照データ（最寄り駅算出）
-    shelters.ts        # 避難所の参照データ（最寄り避難所算出）
   lib/
     map-config.ts      # 地図・ハザード設定
-    metrics.ts         # 距離・徒歩分などの算出
-    color-modes.ts     # 色分けロジック・凡例
+    market-transactions-repository.ts # 取引事例取得
+    tsubo-unit-price-color.ts         # 色分けロジック・凡例
     supabase.ts        # Supabase クライアント（env 未設定なら null）
-    lands-repository.ts# 土地取得（Supabase / フォールバック）
   types/               # 型定義
 scripts/
-  import-belinda-lands.mjs      # ヴェリンダホームズからの取り込み
-  import-soken-lands.mjs        # 創建ハウジングからの取り込み
-  import-nk-lands.mjs           # NKハウジングからの取り込み
-  import-sanco-precia-lands.mjs # 三交不動産プレシア（伊勢分譲土地）からの取り込み
+  import-reinfolib-isuzugawa-prices.mjs # 不動産情報ライブラリからの取り込み
 supabase/
   migrations/          # スキーマ・RLS
-  seed.sql             # 初期データ
 ```
 
 ## デプロイ（Vercel）

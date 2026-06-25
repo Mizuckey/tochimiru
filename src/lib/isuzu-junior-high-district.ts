@@ -29,16 +29,3 @@ export function resolveIsuzuJuniorHighSchool(
 export function listIsuzuJuniorHighChomei(): readonly string[] {
   return districtData.chomei;
 }
-
-export function resolvedJuniorHighForLand(land: {
-  name: string;
-  address?: string;
-  schoolDistrict?: { juniorHigh?: string };
-}): string | null {
-  if (land.schoolDistrict?.juniorHigh) return land.schoolDistrict.juniorHigh;
-  for (const text of [land.address, land.name]) {
-    const fromList = text ? resolveIsuzuJuniorHighSchool(text) : null;
-    if (fromList) return fromList;
-  }
-  return null;
-}

@@ -2,15 +2,11 @@
 
 import type { ReactNode } from "react";
 import type { HazardLayerId } from "@/types/land";
-import type { MapDataMode } from "@/types/market-transaction";
-import { DataModeControl } from "@/components/DataModeControl";
 import { MapColorLegend } from "@/components/MapColorLegend";
 import { HazardLayerToggle } from "@/components/HazardLayerToggle";
 import { SchoolDistrictHighlightControl } from "@/components/SchoolDistrictHighlightControl";
 
 type Props = {
-  dataMode: MapDataMode;
-  onDataModeChange: (mode: MapDataMode) => void;
   activeHazards: Set<HazardLayerId>;
   onToggleHazard: (layerId: HazardLayerId) => void;
   highlightShujuuDistrict: boolean;
@@ -22,8 +18,6 @@ type Props = {
 };
 
 export function MapToolsPanel({
-  dataMode,
-  onDataModeChange,
   activeHazards,
   onToggleHazard,
   highlightShujuuDistrict,
@@ -41,14 +35,6 @@ export function MapToolsPanel({
 
   return (
     <div className="flex w-full min-w-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white/95 shadow-md backdrop-blur sm:w-[17.5rem] sm:max-w-[17.5rem]">
-      <div className="border-b border-zinc-100 px-3 py-2.5">
-        <DataModeControl
-          embedded
-          mode={dataMode}
-          onChange={onDataModeChange}
-        />
-      </div>
-
       <div className="border-b border-zinc-100 px-3 py-2.5">
         <MapColorLegend embedded />
       </div>
