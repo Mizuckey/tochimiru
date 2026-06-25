@@ -628,7 +628,7 @@ export function LandMap({ mapboxToken, lands, marketTransactions }: Props) {
               ? "bottom-[calc(min(72vh,38rem)+0.5rem)]"
               : detailOpen && !isDesktop
               ? "bottom-[calc(min(58vh,28rem)+0.5rem)]"
-              : "bottom-2 sm:bottom-3"
+              : "bottom-12 sm:bottom-3"
           } lg:bottom-3`}
         >
           <div className="flex items-center gap-2">
