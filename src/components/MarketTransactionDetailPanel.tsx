@@ -41,14 +41,6 @@ type SurfaceSoilState =
   | { status: "success"; data: SurfaceSoilDto; cache: SurfaceSoilResult["cache"] }
   | { status: "error"; message: string };
 
-function formatFixed(value: number | null, digits: number): string {
-  if (value == null) return "—";
-  return value.toLocaleString(undefined, {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  });
-}
-
 function SurfaceSoilSection({
   surfaceSoil,
 }: {
@@ -83,20 +75,19 @@ function SurfaceSoilSection({
 
       {surfaceSoil.status === "success" && (
         <>
-          <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-            <Row label="微地形区分">
-              {surfaceSoil.data.geomorphologyName ?? "—"}
-            </Row>
-            <Row label="AVS30">
-              {formatFixed(surfaceSoil.data.avs30, 1)} m/s
-            </Row>
-            <Row label="地盤増幅率（ARV）">
-              {formatFixed(surfaceSoil.data.amplificationFactor, 4)}
-            </Row>
-            <Row label="メッシュコード">{surfaceSoil.data.meshcode}</Row>
-          </dl>
+          <div className="mt-3">
+            <p className="text-2xl font-semibold tracking-normal text-emerald-700">
+              {surfaceSoil.data.evaluation.stars}
+            </p>
+            <p className="mt-1 text-base font-semibold text-zinc-900">
+              {surfaceSoil.data.evaluation.label}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+              {surfaceSoil.data.evaluation.summary}
+            </p>
+          </div>
           <p className="mt-2 text-[11px] text-zinc-400">
-            出典: J-SHIS（防災科学技術研究所）。値は指定座標を含む250mメッシュの代表情報です。
+            出典: J-SHIS（防災科学技術研究所）。評価は250mメッシュ情報から算出した目安です。
           </p>
         </>
       )}

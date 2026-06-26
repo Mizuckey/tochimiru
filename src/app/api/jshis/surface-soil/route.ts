@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 import {
+  evaluateSurfaceSoil,
   fetchJshisSurfaceSoil,
   JshisSurfaceSoilError,
   surfaceSoilLocationKey,
@@ -34,6 +35,11 @@ function rowToDto(row: CacheRow): SurfaceSoilDto {
     geomorphologyName: row.geomorphology_name,
     avs30: row.avs30,
     amplificationFactor: row.amplification_factor,
+    evaluation: evaluateSurfaceSoil({
+      avs30: row.avs30,
+      amplificationFactor: row.amplification_factor,
+      geomorphologyName: row.geomorphology_name,
+    }),
     source: "j-shis",
     fetchedAt: row.fetched_at,
   };

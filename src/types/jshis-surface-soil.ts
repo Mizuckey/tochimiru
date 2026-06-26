@@ -42,8 +42,16 @@ export type SurfaceSoilDto = {
   geomorphologyName: string | null;
   avs30: number | null;
   amplificationFactor: number | null;
+  evaluation: SurfaceSoilEvaluation;
   source: "j-shis";
   fetchedAt: string;
+};
+
+export type SurfaceSoilEvaluation = {
+  score: 1 | 2 | 3 | 4 | 5;
+  stars: string;
+  label: "非常に良い" | "良い" | "普通" | "注意" | "要注意";
+  summary: string;
 };
 
 export type SurfaceSoilResult =
