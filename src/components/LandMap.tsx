@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import type { MapboxGeoJSONFeature } from "mapbox-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, {
   Layer,
@@ -8,6 +9,7 @@ import Map, {
   NavigationControl,
   Popup,
   Source,
+  type MapMouseEvent,
   type MapRef,
 } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -35,10 +37,38 @@ import { transactionMapLabel } from "@/lib/market-transactions-repository";
 import { isInIsuzuJuniorHighDistrict } from "@/lib/isuzu-junior-high-district";
 import { isInShujuuElementaryDistrict } from "@/lib/shujuu-elementary-district";
 import { isInShuudouElementaryDistrict } from "@/lib/shuudou-elementary-district";
+import {
+  applySurfaceSoilToMeshCell,
+  createSurfaceSoilMeshForBounds,
+  emptySurfaceSoilMesh,
+  getNeighborMeshCells,
+  markSurfaceSoilMeshCellUnavailable,
+  surfaceSoilMeshColor,
+  type SurfaceSoilMeshCell,
+  type SurfaceSoilMeshFeatureCollection,
+  type SurfaceSoilMeshCellProperties,
+} from "@/lib/surface-soil-mesh";
+import type { SurfaceSoilResult } from "@/types/jshis-surface-soil";
 type Props = {
   mapboxToken?: string;
   marketTransactions: MarketTransaction[];
 };
+
+const SURFACE_SOIL_MESH_FILL_LAYER_ID = "surface-soil-mesh-fill";
+const SURFACE_SOIL_MESH_SELECTED_LAYER_ID = "surface-soil-mesh-selected";
+const JSHIS_MESH_FETCH_CONCURRENCY = 4;
+const SURFACE_SOIL_MESH_MIN_ZOOM = 14;
+const SURFACE_SOIL_MESH_FETCH_LIMIT = 225;
+const SURFACE_SOIL_MESH_DISPLAY_LIMIT = 1_200;
+
+type MapClickEvent = MapMouseEvent & {
+  features?: MapboxGeoJSONFeature[];
+};
+
+function formatNullableNumber(value: number | null, unit = "") {
+  if (value == null) return "-";
+  return `${value.toLocaleString()}${unit}`;
+}
 
 export function LandMap({ mapboxToken, marketTransactions }: Props) {
   const [selectedTransaction, setSelectedTransaction] =
@@ -52,6 +82,20 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
   const [highlightIsuzuDistrict, setHighlightIsuzuDistrict] = useState(false);
   const [highlightShujuuDistrict, setHighlightShujuuDistrict] = useState(false);
   const [highlightShuudouDistrict, setHighlightShuudouDistrict] = useState(false);
+  const [surfaceSoilMeshVisible, setSurfaceSoilMeshVisible] = useState(true);
+  const [surfaceSoilMesh, setSurfaceSoilMesh] =
+    useState<SurfaceSoilMeshFeatureCollection>(() => emptySurfaceSoilMesh());
+  const [surfaceSoilMeshCache, setSurfaceSoilMeshCache] = useState<
+    Record<string, SurfaceSoilMeshCell>
+  >({});
+  const [surfaceSoilMeshLoading, setSurfaceSoilMeshLoading] = useState(false);
+  const [surfaceSoilMeshFetchTotal, setSurfaceSoilMeshFetchTotal] = useState(0);
+  const [surfaceSoilMeshFetchedCount, setSurfaceSoilMeshFetchedCount] =
+    useState(0);
+  const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM);
+  const [selectedMeshCellId, setSelectedMeshCellId] = useState<string | null>(
+    null,
+  );
 
   const mapRef = useRef<MapRef | null>(null);
 
@@ -144,6 +188,204 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
     setSelectedTransaction(null);
   }, []);
 
+  const refreshVisibleSurfaceSoilMesh = useCallback(
+    (zoom = currentZoom) => {
+      const map = mapRef.current?.getMap();
+      if (!map || !surfaceSoilMeshVisible || zoom < SURFACE_SOIL_MESH_MIN_ZOOM) {
+        setSurfaceSoilMesh(emptySurfaceSoilMesh());
+        return;
+      }
+
+      const bounds = map.getBounds();
+      if (!bounds) {
+        setSurfaceSoilMesh(emptySurfaceSoilMesh());
+        return;
+      }
+
+      const generatedMesh = createSurfaceSoilMeshForBounds({
+        west: bounds.getWest(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        north: bounds.getNorth(),
+      });
+
+      if (generatedMesh.features.length > SURFACE_SOIL_MESH_DISPLAY_LIMIT) {
+        setSurfaceSoilMesh(emptySurfaceSoilMesh());
+        return;
+      }
+
+      setSurfaceSoilMesh({
+        ...generatedMesh,
+        features: generatedMesh.features.map(
+          (feature) => surfaceSoilMeshCache[feature.properties.id] ?? feature,
+        ),
+      });
+    },
+    [currentZoom, surfaceSoilMeshCache, surfaceSoilMeshVisible],
+  );
+
+  useEffect(() => {
+    refreshVisibleSurfaceSoilMesh();
+  }, [refreshVisibleSurfaceSoilMesh]);
+
+  const handleMapLoad = useCallback(() => {
+    applyJapaneseLabels();
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const zoom = map.getZoom();
+    setCurrentZoom(zoom);
+    refreshVisibleSurfaceSoilMesh(zoom);
+  }, [applyJapaneseLabels, refreshVisibleSurfaceSoilMesh]);
+
+  const selectedMeshCell = useMemo(() => {
+    if (!selectedMeshCellId) return null;
+    return (
+      surfaceSoilMesh.features.find(
+        (feature) => feature.properties.id === selectedMeshCellId,
+      )?.properties ?? null
+    );
+  }, [selectedMeshCellId, surfaceSoilMesh]);
+
+  const selectedMeshNeighbors = useMemo(() => {
+    if (!selectedMeshCell) return [];
+    return getNeighborMeshCells(surfaceSoilMesh, selectedMeshCell);
+  }, [selectedMeshCell, surfaceSoilMesh]);
+
+  const selectedMeshNeighborAverage = useMemo(() => {
+    if (selectedMeshNeighbors.length === 0) return null;
+    const total = selectedMeshNeighbors.reduce(
+      (sum, cell) => sum + cell.properties.score,
+      0,
+    );
+    return total / selectedMeshNeighbors.length;
+  }, [selectedMeshNeighbors]);
+
+  const surfaceSoilMeshLoadedCount = useMemo(
+    () =>
+      surfaceSoilMesh.features.filter(
+        (feature) => feature.properties.source === "j-shis",
+      ).length,
+    [surfaceSoilMesh],
+  );
+
+  const surfaceSoilMeshFailedCount = useMemo(
+    () =>
+      surfaceSoilMesh.features.filter(
+        (feature) => feature.properties.source === "unavailable",
+      ).length,
+    [surfaceSoilMesh],
+  );
+
+  const surfaceSoilMeshFetchCandidates = useMemo(() => {
+    if (!surfaceSoilMeshVisible || currentZoom < SURFACE_SOIL_MESH_MIN_ZOOM) {
+      return [];
+    }
+
+    return surfaceSoilMesh.features
+      .filter((feature) => feature.properties.source !== "j-shis")
+      .slice(0, SURFACE_SOIL_MESH_FETCH_LIMIT);
+  }, [currentZoom, surfaceSoilMesh, surfaceSoilMeshVisible]);
+
+  const canFetchSurfaceSoilMesh =
+    surfaceSoilMeshVisible &&
+    currentZoom >= SURFACE_SOIL_MESH_MIN_ZOOM &&
+    !surfaceSoilMeshLoading &&
+    surfaceSoilMeshFetchCandidates.length > 0;
+
+  const fetchSurfaceSoilMeshCells = useCallback(
+    async (targets: SurfaceSoilMeshCell[]) => {
+      if (targets.length === 0) return;
+
+      let cursor = 0;
+
+      setSurfaceSoilMeshLoading(true);
+      setSurfaceSoilMeshFetchTotal(targets.length);
+      setSurfaceSoilMeshFetchedCount(0);
+
+      async function fetchCell(target: SurfaceSoilMeshCell) {
+        const params = new URLSearchParams({
+          lat: String(target.properties.centerLat),
+          lng: String(target.properties.centerLng),
+        });
+        const response = await fetch(`/api/jshis/surface-soil?${params}`);
+        const result = (await response.json()) as SurfaceSoilResult;
+        const nextCell = result.ok
+          ? applySurfaceSoilToMeshCell(target, result.data)
+          : markSurfaceSoilMeshCellUnavailable(target, result.error.message);
+
+        setSurfaceSoilMeshCache((prev) => ({
+          ...prev,
+          [target.properties.id]: nextCell,
+        }));
+
+        setSurfaceSoilMesh((prev) => ({
+          ...prev,
+          features: prev.features.map((feature) => {
+            if (feature.properties.id !== target.properties.id) return feature;
+            return nextCell;
+          }),
+        }));
+
+        setSurfaceSoilMeshFetchedCount((count) => count + 1);
+      }
+
+      async function worker() {
+        while (true) {
+          const index = cursor;
+          cursor += 1;
+          const target = targets[index];
+          if (!target) return;
+
+          try {
+            await fetchCell(target);
+          } catch (error) {
+            const nextCell = markSurfaceSoilMeshCellUnavailable(
+              target,
+              error instanceof Error
+                ? error.message
+                : "J-SHIS 表層地盤情報を取得できませんでした。",
+            );
+
+            setSurfaceSoilMeshCache((prev) => ({
+              ...prev,
+              [target.properties.id]: nextCell,
+            }));
+            setSurfaceSoilMesh((prev) => ({
+              ...prev,
+              features: prev.features.map((feature) =>
+                feature.properties.id === target.properties.id
+                  ? nextCell
+                  : feature,
+              ),
+            }));
+            setSurfaceSoilMeshFetchedCount((count) => count + 1);
+          }
+        }
+      }
+
+      try {
+        await Promise.all(
+          Array.from(
+            { length: Math.min(JSHIS_MESH_FETCH_CONCURRENCY, targets.length) },
+            () => worker(),
+          ),
+        );
+      } finally {
+        setSurfaceSoilMeshLoading(false);
+      }
+    },
+    [],
+  );
+
+  const fetchVisibleSurfaceSoilMesh = useCallback(() => {
+    if (!canFetchSurfaceSoilMesh) return;
+    void fetchSurfaceSoilMeshCells(surfaceSoilMeshFetchCandidates);
+  }, [
+    canFetchSurfaceSoilMesh,
+    fetchSurfaceSoilMeshCells,
+    surfaceSoilMeshFetchCandidates,
+  ]);
+
   const headerSubtitle = (() => {
     if (marketTransactions.length === 0) {
       return "五十鈴川駅周辺 — 取引事例なし";
@@ -211,6 +453,23 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
     );
   }
 
+  function handleMapClick(event: MapClickEvent) {
+    const meshFeature = event.features?.find(
+      (feature) => feature.layer?.id === SURFACE_SOIL_MESH_FILL_LAYER_ID,
+    );
+
+    if (meshFeature?.properties) {
+      const properties = meshFeature.properties as SurfaceSoilMeshCellProperties;
+      setSelectedMeshCellId(properties.id);
+      setSelectedTransaction(null);
+      setToolsOpen(false);
+      return;
+    }
+
+    setSelectedMeshCellId(null);
+    closeDetail();
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       <div
@@ -228,8 +487,18 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
           }}
           style={{ width: "100%", height: "100%" }}
           mapStyle={BASE_MAPS[baseMap].style}
-          onLoad={applyJapaneseLabels}
-          onClick={closeDetail}
+          onLoad={handleMapLoad}
+          onClick={handleMapClick}
+          onMove={(event) => {
+            setCurrentZoom(event.viewState.zoom);
+          }}
+          onMoveEnd={(event) => {
+            setCurrentZoom(event.viewState.zoom);
+            refreshVisibleSurfaceSoilMesh(event.viewState.zoom);
+          }}
+          interactiveLayerIds={
+            surfaceSoilMeshVisible ? [SURFACE_SOIL_MESH_FILL_LAYER_ID] : []
+          }
         >
           <NavigationControl position="bottom-right" />
 
@@ -253,6 +522,71 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
               />
             </Source>
           ))}
+
+          {surfaceSoilMeshVisible && (
+            <Source
+              id="surface-soil-mesh"
+              type="geojson"
+              data={surfaceSoilMesh}
+            >
+              <Layer
+                id={SURFACE_SOIL_MESH_FILL_LAYER_ID}
+                type="fill"
+                minzoom={SURFACE_SOIL_MESH_MIN_ZOOM}
+                paint={{
+                  "fill-color": [
+                    "match",
+                    ["get", "score"],
+                    1,
+                    surfaceSoilMeshColor(1),
+                    2,
+                    surfaceSoilMeshColor(2),
+                    3,
+                    surfaceSoilMeshColor(3),
+                    4,
+                    surfaceSoilMeshColor(4),
+                    5,
+                    surfaceSoilMeshColor(5),
+                    "#a1a1aa",
+                  ],
+                  "fill-opacity": [
+                    "case",
+                    ["==", ["get", "id"], selectedMeshCell?.id ?? ""],
+                    0.62,
+                    0.38,
+                  ],
+                }}
+              />
+              <Layer
+                id="surface-soil-mesh-line"
+                type="line"
+                minzoom={SURFACE_SOIL_MESH_MIN_ZOOM}
+                paint={{
+                  "line-color": "rgba(24, 24, 27, 0.46)",
+                  "line-width": [
+                    "case",
+                    ["==", ["get", "id"], selectedMeshCell?.id ?? ""],
+                    1.4,
+                    0.65,
+                  ],
+                }}
+              />
+              <Layer
+                id={SURFACE_SOIL_MESH_SELECTED_LAYER_ID}
+                type="line"
+                minzoom={SURFACE_SOIL_MESH_MIN_ZOOM}
+                filter={[
+                  "==",
+                  ["get", "id"],
+                  selectedMeshCell?.id ?? "__none__",
+                ]}
+                paint={{
+                  "line-color": "#111827",
+                  "line-width": 2.5,
+                }}
+              />
+            </Source>
+          )}
 
           {transactionLocationGroups.map((group) => {
             const count = group.transactions.length;
@@ -283,6 +617,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
                 onClick={(e) => {
                   e.originalEvent.stopPropagation();
                   setSelectedTransaction(representative);
+                  setSelectedMeshCellId(null);
                   setToolsOpen(false);
                 }}
               >
@@ -338,6 +673,90 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
               </div>
             </Popup>
           )}
+
+          {selectedMeshCell && (
+            <Popup
+              latitude={selectedMeshCell.centerLat}
+              longitude={selectedMeshCell.centerLng}
+              anchor="top"
+              closeOnClick={false}
+              onClose={() => setSelectedMeshCellId(null)}
+            >
+              <div className="w-56 text-sm">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-zinc-900">
+                      250m地盤メッシュ
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {selectedMeshCell.geomorphologyName}
+                    </p>
+                  </div>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+                    style={{
+                      backgroundColor: surfaceSoilMeshColor(
+                        selectedMeshCell.score,
+                      ),
+                    }}
+                  >
+                    {selectedMeshCell.label}
+                  </span>
+                </div>
+                <p className="text-xs leading-relaxed text-zinc-600">
+                  {selectedMeshCell.summary}
+                </p>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div>
+                    <dt className="text-zinc-400">AVS30</dt>
+                    <dd className="font-medium text-zinc-700">
+                      {formatNullableNumber(selectedMeshCell.avs30, " m/s")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-zinc-400">増幅率</dt>
+                    <dd className="font-medium text-zinc-700">
+                      {formatNullableNumber(
+                        selectedMeshCell.amplificationFactor,
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-zinc-400">周辺平均</dt>
+                    <dd className="font-medium text-zinc-700">
+                      {selectedMeshNeighborAverage?.toFixed(1) ?? "-"} / 5
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-zinc-400">比較</dt>
+                    <dd className="font-medium text-zinc-700">
+                      {selectedMeshNeighborAverage == null
+                        ? "-"
+                        : selectedMeshCell.score > selectedMeshNeighborAverage
+                          ? "周辺より良好"
+                          : selectedMeshCell.score < selectedMeshNeighborAverage
+                            ? "周辺より注意"
+                            : "周辺並み"}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-2 text-[10px] leading-tight text-zinc-400">
+                  {selectedMeshCell.source === "j-shis"
+                    ? `J-SHIS 表層地盤データ ${
+                        selectedMeshCell.meshcode
+                          ? `（${selectedMeshCell.meshcode}）`
+                          : ""
+                      }`
+                    : selectedMeshCell.source === "unavailable"
+                      ? `J-SHIS 取得失敗: ${
+                          selectedMeshCell.errorMessage ??
+                          "表層地盤情報を取得できませんでした。"
+                        }`
+                      : "未取得セルです。中央周辺から J-SHIS データを順次読み込みます。"}
+                </p>
+              </div>
+            </Popup>
+          )}
         </Map>
 
         <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3">
@@ -363,6 +782,23 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
             <MapToolsPanel
               activeHazards={activeHazards}
               onToggleHazard={toggleHazard}
+              surfaceSoilMeshVisible={surfaceSoilMeshVisible}
+              surfaceSoilMeshLoading={surfaceSoilMeshLoading}
+              surfaceSoilMeshLoadedCount={surfaceSoilMeshLoadedCount}
+              surfaceSoilMeshFailedCount={surfaceSoilMeshFailedCount}
+              surfaceSoilMeshTargetCount={surfaceSoilMesh.features.length}
+              surfaceSoilMeshFetchableCount={
+                surfaceSoilMeshFetchCandidates.length
+              }
+              surfaceSoilMeshFetchTotal={surfaceSoilMeshFetchTotal}
+              surfaceSoilMeshFetchedCount={surfaceSoilMeshFetchedCount}
+              surfaceSoilMeshCanFetch={canFetchSurfaceSoilMesh}
+              surfaceSoilMeshMinZoom={SURFACE_SOIL_MESH_MIN_ZOOM}
+              currentZoom={currentZoom}
+              onToggleSurfaceSoilMesh={() =>
+                setSurfaceSoilMeshVisible((v) => !v)
+              }
+              onFetchSurfaceSoilMesh={fetchVisibleSurfaceSoilMesh}
               highlightShujuuDistrict={highlightShujuuDistrict}
               onToggleShujuuDistrict={() =>
                 setHighlightShujuuDistrict((v) => !v)
