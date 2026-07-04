@@ -7,6 +7,7 @@ import { HazardLayerToggle } from "@/components/HazardLayerToggle";
 import { SchoolDistrictHighlightControl } from "@/components/SchoolDistrictHighlightControl";
 
 type Props = {
+  iseModeEnabled: boolean;
   activeHazards: Set<HazardLayerId>;
   onToggleHazard: (layerId: HazardLayerId) => void;
   surfaceSoilMeshVisible: boolean;
@@ -31,6 +32,7 @@ type Props = {
 };
 
 export function MapToolsPanel({
+  iseModeEnabled,
   activeHazards,
   onToggleHazard,
   surfaceSoilMeshVisible,
@@ -198,39 +200,41 @@ export function MapToolsPanel({
         />
       </CollapsibleSection>
 
-      <CollapsibleSection
-        title="校区の強調"
-        badge={
-          districtActiveCount > 0 ? String(districtActiveCount) : undefined
-        }
-      >
-        <p className="mb-2 text-[11px] leading-snug text-zinc-500">
-          町名リストに一致するピンのみ強調します（区域境界の塗りつぶしは未対応）。
-        </p>
-        <div className="flex flex-col gap-2">
-          <SchoolDistrictHighlightControl
-            compact
-            accent="sky"
-            label="進修小学校"
-            active={highlightShujuuDistrict}
-            onToggle={onToggleShujuuDistrict}
-          />
-          <SchoolDistrictHighlightControl
-            compact
-            accent="teal"
-            label="修道小学校"
-            active={highlightShuudouDistrict}
-            onToggle={onToggleShuudouDistrict}
-          />
-          <SchoolDistrictHighlightControl
-            compact
-            accent="violet"
-            label="五十鈴中学校"
-            active={highlightIsuzuDistrict}
-            onToggle={onToggleIsuzuDistrict}
-          />
-        </div>
-      </CollapsibleSection>
+      {iseModeEnabled && (
+        <CollapsibleSection
+          title="校区の強調"
+          badge={
+            districtActiveCount > 0 ? String(districtActiveCount) : undefined
+          }
+        >
+          <p className="mb-2 text-[11px] leading-snug text-zinc-500">
+            町名リストに一致するピンのみ強調します（区域境界の塗りつぶしは未対応）。
+          </p>
+          <div className="flex flex-col gap-2">
+            <SchoolDistrictHighlightControl
+              compact
+              accent="sky"
+              label="進修小学校"
+              active={highlightShujuuDistrict}
+              onToggle={onToggleShujuuDistrict}
+            />
+            <SchoolDistrictHighlightControl
+              compact
+              accent="teal"
+              label="修道小学校"
+              active={highlightShuudouDistrict}
+              onToggle={onToggleShuudouDistrict}
+            />
+            <SchoolDistrictHighlightControl
+              compact
+              accent="violet"
+              label="五十鈴中学校"
+              active={highlightIsuzuDistrict}
+              onToggle={onToggleIsuzuDistrict}
+            />
+          </div>
+        </CollapsibleSection>
+      )}
     </div>
   );
 }

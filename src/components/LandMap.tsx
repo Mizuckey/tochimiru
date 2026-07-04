@@ -78,6 +78,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
     () => new Set(["flood"]),
   );
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [iseModeEnabled, setIseModeEnabled] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [highlightIsuzuDistrict, setHighlightIsuzuDistrict] = useState(false);
   const [highlightShujuuDistrict, setHighlightShujuuDistrict] = useState(false);
@@ -121,7 +122,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
     [transactionLocationGroups, selectedTransaction],
   );
 
-  const detailOpen = selectedTransaction != null;
+  const detailOpen = iseModeEnabled && selectedTransaction != null;
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -389,18 +390,22 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
   ]);
 
   const headerSubtitle = (() => {
+    if (!iseModeEnabled) {
+      return "全国モード — ハザード・地盤を確認";
+    }
+
     if (marketTransactions.length === 0) {
-      return "五十鈴川駅周辺 — 取引事例なし";
+      return "伊勢モード — 五十鈴川駅周辺 — 取引事例なし";
     }
 
     if (
       mappableTransactions.length < marketTransactions.length ||
       transactionLocationGroups.length < mappableTransactions.length
     ) {
-      return `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件（地図 ${transactionLocationGroups.length} か所）`;
+      return `伊勢モード — 五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件（地図 ${transactionLocationGroups.length} か所）`;
     }
 
-    return `五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件`;
+    return `伊勢モード — 五十鈴川駅周辺 — 取引 ${marketTransactions.length} 件`;
   })();
 
   if (!mapboxToken) {
@@ -605,7 +610,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
             </Source>
           )}
 
-          {transactionLocationGroups.map((group) => {
+          {iseModeEnabled && transactionLocationGroups.map((group) => {
             const count = group.transactions.length;
             const representative = group.transactions[0];
             const placeLabel = [
@@ -665,7 +670,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
             );
           })}
 
-          {selectedTransaction && isDesktop && (
+          {iseModeEnabled && selectedTransaction && isDesktop && (
             <Popup
               latitude={selectedTransaction.lat!}
               longitude={selectedTransaction.lng!}
@@ -818,6 +823,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
             } lg:block lg:max-h-[calc(100vh-5rem)] lg:w-[17.5rem]`}
           >
             <MapToolsPanel
+              iseModeEnabled={iseModeEnabled}
               activeHazards={activeHazards}
               onToggleHazard={toggleHazard}
               surfaceSoilMeshVisible={surfaceSoilMeshVisible}
@@ -854,21 +860,45 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
         </div>
 
         <header
-          className={`pointer-events-none absolute left-2 z-10 max-w-[calc(100%-6rem)] rounded-xl bg-white/90 px-2 py-1.5 shadow-sm backdrop-blur sm:left-3 sm:px-2.5 sm:py-2 ${
+          className={`absolute left-2 z-10 max-w-[calc(100%-6rem)] rounded-xl bg-white/90 px-2 py-1.5 shadow-sm backdrop-blur sm:left-3 sm:px-2.5 sm:py-2 ${
             detailOpen && !isDesktop
               ? "bottom-[calc(min(58vh,28rem)+0.5rem)]"
               : "bottom-12 sm:bottom-3"
           } lg:bottom-3`}
         >
           <div className="flex items-center gap-2">
-            <Image
-              src="/apple-icon.png"
-              alt=""
-              width={36}
-              height={36}
-              className="size-9 rounded-lg"
-              priority
-            />
+            <button
+              type="button"
+              aria-pressed={iseModeEnabled}
+              aria-label={
+                iseModeEnabled ? "伊勢モードを無効にする" : "伊勢モードを有効にする"
+              }
+              onClick={() => {
+                setIseModeEnabled((enabled) => {
+                  if (enabled) {
+                    setSelectedTransaction(null);
+                    setHighlightShujuuDistrict(false);
+                    setHighlightShuudouDistrict(false);
+                    setHighlightIsuzuDistrict(false);
+                  }
+                  return !enabled;
+                });
+              }}
+              className={`rounded-lg outline-none transition ${
+                iseModeEnabled
+                  ? "ring-2 ring-emerald-500 ring-offset-2"
+                  : "hover:ring-2 hover:ring-zinc-300 hover:ring-offset-2 focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
+              }`}
+            >
+              <Image
+                src="/apple-icon.png"
+                alt=""
+                width={36}
+                height={36}
+                className="size-9 rounded-lg"
+                priority
+              />
+            </button>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-zinc-900 sm:text-sm">
                 トチミル
@@ -882,8 +912,10 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
       </div>
 
       <MarketTransactionDetailPanel
-        transaction={selectedTransaction}
-        locationTransactions={selectedLocationGroup?.transactions ?? []}
+        transaction={iseModeEnabled ? selectedTransaction : null}
+        locationTransactions={
+          iseModeEnabled ? selectedLocationGroup?.transactions ?? [] : []
+        }
         onSelectTransaction={setSelectedTransaction}
         onClose={closeDetail}
       />
