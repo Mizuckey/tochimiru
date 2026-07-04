@@ -7,10 +7,10 @@ import type {
 
 export type SurfaceSoilMeshCellProperties = {
   id: string;
-  score: SurfaceSoilEvaluation["score"];
-  label: SurfaceSoilEvaluation["label"];
-  summary: string;
-  geomorphologyName: string;
+  score: SurfaceSoilEvaluation["score"] | null;
+  label: SurfaceSoilEvaluation["label"] | null;
+  summary: string | null;
+  geomorphologyName: string | null;
   avs30: number | null;
   amplificationFactor: number | null;
   centerLat: number;
@@ -21,7 +21,7 @@ export type SurfaceSoilMeshCellProperties = {
   south: number;
   east: number;
   north: number;
-  source: "prototype" | "j-shis" | "unavailable";
+  source: "pending" | "j-shis" | "unavailable";
   meshcode?: string;
   fetchedAt?: string;
   errorMessage?: string;
@@ -40,33 +40,6 @@ export type SurfaceSoilMeshFeatureCollection = FeatureCollection<
 const MESH_SIZE_METERS = 250;
 const WEB_MERCATOR_RADIUS_METERS = 6_378_137;
 const WEB_MERCATOR_MAX_LAT = 85.05112878;
-
-const SCORE_LABELS: Record<
-  SurfaceSoilEvaluation["score"],
-  SurfaceSoilEvaluation["label"]
-> = {
-  5: "非常に良い",
-  4: "良い",
-  3: "普通",
-  2: "注意",
-  1: "要注意",
-};
-
-const SCORE_SUMMARIES: Record<SurfaceSoilEvaluation["score"], string> = {
-  5: "揺れが増幅しにくい地盤と考えられる目安です。",
-  4: "比較的しっかりした地盤と考えられる目安です。",
-  3: "標準的な地盤と考えられる目安です。",
-  2: "揺れやすさに少し注意したい地盤の目安です。",
-  1: "揺れやすさや地形条件に注意したい地盤の目安です。",
-};
-
-const GEOMORPHOLOGY_NAMES: Record<SurfaceSoilEvaluation["score"], string[]> = {
-  5: ["山地", "丘陵地", "砂礫質台地"],
-  4: ["段丘", "ローム台地", "扇状地"],
-  3: ["自然堤防", "砂州", "谷底平野"],
-  2: ["後背湿地", "三角州性低地", "海岸低地"],
-  1: ["旧河道", "埋立地", "干拓地"],
-};
 
 export type SurfaceSoilMeshBounds = {
   west: number;
@@ -109,34 +82,6 @@ function webMercatorYToLat(y: number) {
   );
 }
 
-function clampScore(score: number): SurfaceSoilEvaluation["score"] {
-  return Math.min(5, Math.max(1, score)) as SurfaceSoilEvaluation["score"];
-}
-
-function prototypeScore(row: number, col: number) {
-  const distancePenalty = Math.max(Math.abs(row), Math.abs(col)) > 3 ? -1 : 0;
-  const terrainWave = Math.sin((row + 2) * 0.9) + Math.cos((col - 1) * 0.7);
-  return clampScore(Math.round(3 + terrainWave / 1.25 + distancePenalty));
-}
-
-function createPrototypeProperties(row: number, col: number) {
-  const score = prototypeScore(row, col);
-  const geomorphologyOptions = GEOMORPHOLOGY_NAMES[score];
-  const geomorphologyName =
-    geomorphologyOptions[
-      Math.abs(row * 3 + col * 5) % geomorphologyOptions.length
-    ];
-
-  return {
-    score,
-    label: SCORE_LABELS[score],
-    summary: SCORE_SUMMARIES[score],
-    geomorphologyName,
-    avs30: Math.round(130 + score * 62 + ((row - col) % 4) * 9),
-    amplificationFactor: Number((2.35 - score * 0.2).toFixed(2)),
-  };
-}
-
 export function surfaceSoilMeshColor(score: SurfaceSoilEvaluation["score"]) {
   const colors: Record<SurfaceSoilEvaluation["score"], string> = {
     5: "#1d9a8a",
@@ -172,7 +117,6 @@ export function createSurfaceSoilMeshForBounds({
       const cellNorth = webMercatorYToLat((row + 1) * MESH_SIZE_METERS);
       const centerLng = (cellWest + cellEast) / 2;
       const centerLat = (cellSouth + cellNorth) / 2;
-      const prototypeProperties = createPrototypeProperties(row, col);
 
       features.push({
         type: "Feature",
@@ -190,7 +134,12 @@ export function createSurfaceSoilMeshForBounds({
         },
         properties: {
           id: `wm-250m-${col}-${row}`,
-          ...prototypeProperties,
+          score: null,
+          label: null,
+          summary: null,
+          geomorphologyName: null,
+          avs30: null,
+          amplificationFactor: null,
           centerLat,
           centerLng,
           row,
@@ -199,7 +148,7 @@ export function createSurfaceSoilMeshForBounds({
           south: cellSouth,
           east: cellEast,
           north: cellNorth,
-          source: "prototype",
+          source: "pending",
         },
       });
     }

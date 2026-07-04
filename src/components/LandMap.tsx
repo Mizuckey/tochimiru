@@ -248,13 +248,15 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
 
   const selectedMeshNeighbors = useMemo(() => {
     if (!selectedMeshCell) return [];
-    return getNeighborMeshCells(surfaceSoilMesh, selectedMeshCell);
+    return getNeighborMeshCells(surfaceSoilMesh, selectedMeshCell).filter(
+      (cell) => cell.properties.source === "j-shis",
+    );
   }, [selectedMeshCell, surfaceSoilMesh]);
 
   const selectedMeshNeighborAverage = useMemo(() => {
     if (selectedMeshNeighbors.length === 0) return null;
     const total = selectedMeshNeighbors.reduce(
-      (sum, cell) => sum + cell.properties.score,
+      (sum, cell) => sum + (cell.properties.score ?? 0),
       0,
     );
     return total / selectedMeshNeighbors.length;
@@ -535,25 +537,40 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
                 minzoom={SURFACE_SOIL_MESH_MIN_ZOOM}
                 paint={{
                   "fill-color": [
-                    "match",
-                    ["get", "score"],
-                    1,
-                    surfaceSoilMeshColor(1),
-                    2,
-                    surfaceSoilMeshColor(2),
-                    3,
-                    surfaceSoilMeshColor(3),
-                    4,
-                    surfaceSoilMeshColor(4),
-                    5,
-                    surfaceSoilMeshColor(5),
+                    "case",
+                    ["!=", ["get", "source"], "j-shis"],
                     "#a1a1aa",
+                    [
+                      "match",
+                      ["get", "score"],
+                      1,
+                      surfaceSoilMeshColor(1),
+                      2,
+                      surfaceSoilMeshColor(2),
+                      3,
+                      surfaceSoilMeshColor(3),
+                      4,
+                      surfaceSoilMeshColor(4),
+                      5,
+                      surfaceSoilMeshColor(5),
+                      "#a1a1aa",
+                    ],
                   ],
                   "fill-opacity": [
                     "case",
                     ["==", ["get", "id"], selectedMeshCell?.id ?? ""],
-                    0.62,
-                    0.38,
+                    [
+                      "case",
+                      ["==", ["get", "source"], "j-shis"],
+                      0.62,
+                      0.3,
+                    ],
+                    [
+                      "case",
+                      ["==", ["get", "source"], "j-shis"],
+                      0.38,
+                      0.14,
+                    ],
                   ],
                 }}
               />
@@ -689,57 +706,78 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
                       250m地盤メッシュ
                     </p>
                     <p className="text-xs text-zinc-500">
-                      {selectedMeshCell.geomorphologyName}
+                      {selectedMeshCell.source === "j-shis"
+                        ? selectedMeshCell.geomorphologyName
+                        : selectedMeshCell.source === "unavailable"
+                          ? "取得失敗"
+                          : "未取得"}
                     </p>
                   </div>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-xs font-semibold text-white"
-                    style={{
-                      backgroundColor: surfaceSoilMeshColor(
-                        selectedMeshCell.score,
-                      ),
-                    }}
-                  >
-                    {selectedMeshCell.label}
-                  </span>
+                  {selectedMeshCell.source === "j-shis" &&
+                    selectedMeshCell.score != null &&
+                    selectedMeshCell.label != null && (
+                      <span
+                        className="rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+                        style={{
+                          backgroundColor: surfaceSoilMeshColor(
+                            selectedMeshCell.score,
+                          ),
+                        }}
+                      >
+                        {selectedMeshCell.label}
+                      </span>
+                    )}
                 </div>
-                <p className="text-xs leading-relaxed text-zinc-600">
-                  {selectedMeshCell.summary}
-                </p>
-                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <div>
-                    <dt className="text-zinc-400">AVS30</dt>
-                    <dd className="font-medium text-zinc-700">
-                      {formatNullableNumber(selectedMeshCell.avs30, " m/s")}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-zinc-400">増幅率</dt>
-                    <dd className="font-medium text-zinc-700">
-                      {formatNullableNumber(
-                        selectedMeshCell.amplificationFactor,
-                      )}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-zinc-400">周辺平均</dt>
-                    <dd className="font-medium text-zinc-700">
-                      {selectedMeshNeighborAverage?.toFixed(1) ?? "-"} / 5
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-zinc-400">比較</dt>
-                    <dd className="font-medium text-zinc-700">
-                      {selectedMeshNeighborAverage == null
-                        ? "-"
-                        : selectedMeshCell.score > selectedMeshNeighborAverage
-                          ? "周辺より良好"
-                          : selectedMeshCell.score < selectedMeshNeighborAverage
-                            ? "周辺より注意"
-                            : "周辺並み"}
-                    </dd>
-                  </div>
-                </dl>
+                {selectedMeshCell.source === "j-shis" ? (
+                  <>
+                    <p className="text-xs leading-relaxed text-zinc-600">
+                      {selectedMeshCell.summary}
+                    </p>
+                    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                      <div>
+                        <dt className="text-zinc-400">AVS30</dt>
+                        <dd className="font-medium text-zinc-700">
+                          {formatNullableNumber(selectedMeshCell.avs30, " m/s")}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-zinc-400">増幅率</dt>
+                        <dd className="font-medium text-zinc-700">
+                          {formatNullableNumber(
+                            selectedMeshCell.amplificationFactor,
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-zinc-400">周辺平均</dt>
+                        <dd className="font-medium text-zinc-700">
+                          {selectedMeshNeighborAverage?.toFixed(1) ?? "-"} / 5
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-zinc-400">比較</dt>
+                        <dd className="font-medium text-zinc-700">
+                          {selectedMeshNeighborAverage == null ||
+                          selectedMeshCell.score == null
+                            ? "-"
+                            : selectedMeshCell.score >
+                                selectedMeshNeighborAverage
+                              ? "周辺より良好"
+                              : selectedMeshCell.score <
+                                  selectedMeshNeighborAverage
+                                ? "周辺より注意"
+                                : "周辺並み"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </>
+                ) : (
+                  <p className="text-xs leading-relaxed text-zinc-600">
+                    {selectedMeshCell.source === "unavailable"
+                      ? "このセルのJ-SHIS表層地盤データは取得できませんでした。"
+                      : "このセルはまだ未取得です。表示中の地盤情報を取得ボタンでJ-SHISデータを取得できます。"}
+                  </p>
+                )}
                 <p className="mt-2 text-[10px] leading-tight text-zinc-400">
                   {selectedMeshCell.source === "j-shis"
                     ? `J-SHIS 表層地盤データ ${
@@ -752,7 +790,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
                           selectedMeshCell.errorMessage ??
                           "表層地盤情報を取得できませんでした。"
                         }`
-                      : "未取得セルです。中央周辺から J-SHIS データを順次読み込みます。"}
+                      : "未取得セルです。地形名・評価・色分けは実データ取得後に表示します。"}
                 </p>
               </div>
             </Popup>

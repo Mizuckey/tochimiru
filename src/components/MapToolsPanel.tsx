@@ -139,7 +139,13 @@ export function MapToolsPanel({
                 ? `ズーム${surfaceSoilMeshMinZoom}以上で取得`
                 : "表示中の未取得セルはありません"}
         </button>
-        <div className="mt-2 grid grid-cols-5 gap-1">
+        <div className="mt-2 grid grid-cols-3 gap-1">
+          <div className="min-w-0 text-center">
+            <span className="mx-auto block h-2.5 rounded-sm border border-black/10 bg-zinc-300" />
+            <span className="mt-1 block truncate text-[9px] text-zinc-500">
+              未取得
+            </span>
+          </div>
           {[
             ["#d84b4b", "要注意"],
             ["#ee8a3b", "注意"],
