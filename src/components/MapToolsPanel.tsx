@@ -2,12 +2,16 @@
 
 import type { ReactNode } from "react";
 import type { HazardLayerId } from "@/types/land";
+import type { BaseMapId } from "@/lib/map-config";
 import { MapColorLegend } from "@/components/MapColorLegend";
 import { HazardLayerToggle } from "@/components/HazardLayerToggle";
 import { SchoolDistrictHighlightControl } from "@/components/SchoolDistrictHighlightControl";
+import { BaseMapControl } from "@/components/BaseMapControl";
 
 type Props = {
   iseModeEnabled: boolean;
+  baseMap: BaseMapId;
+  onChangeBaseMap: (baseMap: BaseMapId) => void;
   activeHazards: Set<HazardLayerId>;
   onToggleHazard: (layerId: HazardLayerId) => void;
   surfaceSoilMeshVisible: boolean;
@@ -33,6 +37,8 @@ type Props = {
 
 export function MapToolsPanel({
   iseModeEnabled,
+  baseMap,
+  onChangeBaseMap,
   activeHazards,
   onToggleHazard,
   surfaceSoilMeshVisible,
@@ -63,6 +69,10 @@ export function MapToolsPanel({
 
   return (
     <div className="flex w-full min-w-0 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white/95 shadow-md backdrop-blur sm:w-[17.5rem] sm:max-w-[17.5rem]">
+      <div className="border-b border-zinc-100 px-3 py-2.5 lg:hidden">
+        <BaseMapControl baseMap={baseMap} onChange={onChangeBaseMap} />
+      </div>
+
       <div className="border-b border-zinc-100 px-3 py-2.5">
         <MapColorLegend embedded />
       </div>

@@ -857,11 +857,11 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
           )}
         </Map>
 
-        <div className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3">
+        <div className="absolute right-2 top-2 z-10 hidden sm:right-3 sm:top-3 lg:block">
           <BaseMapControl baseMap={baseMap} onChange={setBaseMap} />
         </div>
 
-        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-5.5rem)] flex-col items-start gap-2 sm:left-3 sm:top-3 lg:max-w-[22rem]">
+        <div className="absolute left-2 right-2 top-2 z-10 flex flex-col items-end gap-1.5 sm:left-3 sm:right-auto sm:top-3 sm:items-start sm:gap-2 lg:max-w-[22rem]">
           <AddressSearchControl
             onSelect={selectSearchPlace}
             getProximity={getSearchProximity}
@@ -869,12 +869,16 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
 
           <button
             type="button"
-            className="flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white/95 px-4 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur lg:hidden"
+            className={`flex size-10 shrink-0 items-center justify-center rounded-full border shadow-sm backdrop-blur transition-colors lg:hidden ${
+              toolsOpen
+                ? "border-zinc-900 bg-zinc-900 text-white"
+                : "border-zinc-200 bg-white/95 text-zinc-800 hover:bg-zinc-50"
+            }`}
             aria-expanded={toolsOpen}
             aria-label={toolsOpen ? "表示モードを閉じる" : "表示モードを開く"}
             onClick={() => setToolsOpen((open) => !open)}
           >
-            {toolsOpen ? "閉じる" : "表示モード"}
+            <SlidersIcon className="size-5" />
           </button>
 
           <div
@@ -884,6 +888,8 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
           >
             <MapToolsPanel
               iseModeEnabled={iseModeEnabled}
+              baseMap={baseMap}
+              onChangeBaseMap={setBaseMap}
               activeHazards={activeHazards}
               onToggleHazard={toggleHazard}
               surfaceSoilMeshVisible={surfaceSoilMeshVisible}
@@ -980,5 +986,28 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
         onClose={closeDetail}
       />
     </div>
+  );
+}
+
+function SlidersIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M4 7h5m4 0h7M4 17h7m4 0h5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M11 7a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM9 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+    </svg>
   );
 }

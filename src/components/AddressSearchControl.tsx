@@ -96,7 +96,7 @@ export function AddressSearchControl({ onSelect, getProximity }: Props) {
   }
 
   return (
-    <div className="w-[min(calc(100vw-8rem),22rem)] sm:w-[22rem]">
+    <div className="w-full sm:w-[22rem]">
       <form
         onSubmit={search}
         className="flex min-h-11 overflow-hidden rounded-lg border border-zinc-200 bg-white/95 shadow-sm backdrop-blur"
