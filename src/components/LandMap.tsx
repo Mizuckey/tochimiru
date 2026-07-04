@@ -28,6 +28,10 @@ import type { MarketTransaction } from "@/types/market-transaction";
 import { MarketTransactionDetailPanel } from "@/components/MarketTransactionDetailPanel";
 import { BaseMapControl } from "@/components/BaseMapControl";
 import { MapToolsPanel } from "@/components/MapToolsPanel";
+import {
+  AddressSearchControl,
+  type AddressSearchPlace,
+} from "@/components/AddressSearchControl";
 import { getTransactionMarkerColor } from "@/lib/tsubo-unit-price-color";
 import {
   findLocationGroupForTransaction,
@@ -94,6 +98,8 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
   const [surfaceSoilMeshFetchedCount, setSurfaceSoilMeshFetchedCount] =
     useState(0);
   const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM);
+  const [selectedSearchPlace, setSelectedSearchPlace] =
+    useState<AddressSearchPlace | null>(null);
   const [selectedMeshCellId, setSelectedMeshCellId] = useState<string | null>(
     null,
   );
@@ -389,6 +395,24 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
     surfaceSoilMeshFetchCandidates,
   ]);
 
+  const getSearchProximity = useCallback(() => {
+    const center = mapRef.current?.getMap().getCenter();
+    if (!center) return null;
+    return { lat: center.lat, lng: center.lng };
+  }, []);
+
+  const selectSearchPlace = useCallback((place: AddressSearchPlace) => {
+    setSelectedSearchPlace(place);
+    setSelectedTransaction(null);
+    setSelectedMeshCellId(null);
+    setToolsOpen(false);
+    mapRef.current?.flyTo({
+      center: [place.lng, place.lat],
+      zoom: Math.max(mapRef.current.getZoom(), 15.5),
+      essential: true,
+    });
+  }, []);
+
   const headerSubtitle = (() => {
     if (!iseModeEnabled) {
       return "全国モード — ハザード・地盤を確認";
@@ -610,6 +634,37 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
             </Source>
           )}
 
+          {selectedSearchPlace && (
+            <>
+              <Marker
+                latitude={selectedSearchPlace.lat}
+                longitude={selectedSearchPlace.lng}
+                anchor="bottom"
+              >
+                <div className="relative flex flex-col items-center">
+                  <span className="size-4 rounded-full border-2 border-white bg-sky-600 shadow-md" />
+                  <span className="-mt-1 h-3 w-0.5 bg-sky-600 shadow-sm" />
+                </div>
+              </Marker>
+              <Popup
+                latitude={selectedSearchPlace.lat}
+                longitude={selectedSearchPlace.lng}
+                anchor="top"
+                closeOnClick={false}
+                onClose={() => setSelectedSearchPlace(null)}
+              >
+                <div className="max-w-56 text-sm">
+                  <p className="font-semibold text-zinc-900">
+                    {selectedSearchPlace.name}
+                  </p>
+                  <p className="mt-1 text-xs leading-snug text-zinc-500">
+                    {selectedSearchPlace.fullAddress}
+                  </p>
+                </div>
+              </Popup>
+            </>
+          )}
+
           {iseModeEnabled && transactionLocationGroups.map((group) => {
             const count = group.transactions.length;
             const representative = group.transactions[0];
@@ -806,7 +861,12 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
           <BaseMapControl baseMap={baseMap} onChange={setBaseMap} />
         </div>
 
-        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-5.5rem)] flex-col items-start gap-2 sm:left-3 sm:top-3 lg:max-w-[17.5rem]">
+        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-5.5rem)] flex-col items-start gap-2 sm:left-3 sm:top-3 lg:max-w-[22rem]">
+          <AddressSearchControl
+            onSelect={selectSearchPlace}
+            getProximity={getSearchProximity}
+          />
+
           <button
             type="button"
             className="flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white/95 px-4 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur lg:hidden"
