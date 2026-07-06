@@ -27,6 +27,10 @@ type Props = {
   currentZoom: number;
   onToggleSurfaceSoilMesh: () => void;
   onFetchSurfaceSoilMesh: () => void;
+  chomeiBoundariesVisible: boolean;
+  chomeiBoundaryCount: number;
+  chomeiBoundaryTransactionCount: number;
+  onToggleChomeiBoundaries: () => void;
   highlightShujuuDistrict: boolean;
   onToggleShujuuDistrict: () => void;
   highlightShuudouDistrict: boolean;
@@ -54,6 +58,10 @@ export function MapToolsPanel({
   currentZoom,
   onToggleSurfaceSoilMesh,
   onFetchSurfaceSoilMesh,
+  chomeiBoundariesVisible,
+  chomeiBoundaryCount,
+  chomeiBoundaryTransactionCount,
+  onToggleChomeiBoundaries,
   highlightShujuuDistrict,
   onToggleShujuuDistrict,
   highlightShuudouDistrict,
@@ -209,6 +217,55 @@ export function MapToolsPanel({
           onToggle={onToggleHazard}
         />
       </CollapsibleSection>
+
+      {iseModeEnabled && (
+        <CollapsibleSection
+          title="町名範囲"
+          badge={chomeiBoundariesVisible ? "ON" : undefined}
+        >
+          <button
+            type="button"
+            aria-pressed={chomeiBoundariesVisible}
+            onClick={onToggleChomeiBoundaries}
+            className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors ${
+              chomeiBoundariesVisible
+                ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+            }`}
+          >
+            <span className="flex min-w-0 flex-col">
+              <span className="text-xs font-semibold">町丁字境界</span>
+              <span className="text-[11px] leading-snug opacity-75">
+                取引の町名を範囲で表示
+              </span>
+            </span>
+            <span
+              className={`ml-3 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors ${
+                chomeiBoundariesVisible ? "bg-emerald-600" : "bg-zinc-300"
+              }`}
+              aria-hidden
+            >
+              <span
+                className={`size-4 rounded-full bg-white shadow-sm transition-transform ${
+                  chomeiBoundariesVisible ? "translate-x-4" : ""
+                }`}
+              />
+            </span>
+          </button>
+          <div className="mt-2 rounded-lg bg-zinc-50 px-2.5 py-2 text-[11px] leading-snug text-zinc-600">
+            <div className="flex items-center justify-between gap-2">
+              <span>伊勢市 町丁字境界</span>
+              <span className="font-medium text-zinc-800">
+                {chomeiBoundaryCount} 件
+              </span>
+            </div>
+            <p className="mt-1 text-zinc-400">
+              緑の範囲は取引事例の町名と一致しています（
+              {chomeiBoundaryTransactionCount} 範囲）。
+            </p>
+          </div>
+        </CollapsibleSection>
+      )}
 
       {iseModeEnabled && (
         <CollapsibleSection

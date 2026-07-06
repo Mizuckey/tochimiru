@@ -37,6 +37,12 @@ import {
   findLocationGroupForTransaction,
   groupMarketTransactionsByLocation,
 } from "@/lib/market-transaction-groups";
+import {
+  boundaryMatchesTransaction,
+  ISE_CHOMEI_BOUNDARIES,
+  type IseChomeiBoundaryFeatureCollection,
+  type IseChomeiBoundaryProperties,
+} from "@/lib/ise-chomei-boundaries";
 import { transactionMapLabel } from "@/lib/market-transactions-repository";
 import { isInIsuzuJuniorHighDistrict } from "@/lib/isuzu-junior-high-district";
 import { isInShujuuElementaryDistrict } from "@/lib/shujuu-elementary-district";
@@ -60,6 +66,8 @@ type Props = {
 
 const SURFACE_SOIL_MESH_FILL_LAYER_ID = "surface-soil-mesh-fill";
 const SURFACE_SOIL_MESH_SELECTED_LAYER_ID = "surface-soil-mesh-selected";
+const ISE_CHOMEI_BOUNDARY_FILL_LAYER_ID = "ise-chomei-boundary-fill";
+const ISE_CHOMEI_BOUNDARY_LINE_LAYER_ID = "ise-chomei-boundary-line";
 const JSHIS_MESH_FETCH_CONCURRENCY = 4;
 const SURFACE_SOIL_MESH_MIN_ZOOM = 14;
 const SURFACE_SOIL_MESH_FETCH_LIMIT = 225;
@@ -87,6 +95,12 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
   const [highlightIsuzuDistrict, setHighlightIsuzuDistrict] = useState(false);
   const [highlightShujuuDistrict, setHighlightShujuuDistrict] = useState(false);
   const [highlightShuudouDistrict, setHighlightShuudouDistrict] = useState(false);
+  const [chomeiBoundariesVisible, setChomeiBoundariesVisible] = useState(true);
+  const [selectedChomeiBoundary, setSelectedChomeiBoundary] = useState<{
+    properties: IseChomeiBoundaryProperties;
+    lng: number;
+    lat: number;
+  } | null>(null);
   const [surfaceSoilMeshVisible, setSurfaceSoilMeshVisible] = useState(true);
   const [surfaceSoilMesh, setSurfaceSoilMesh] =
     useState<SurfaceSoilMeshFeatureCollection>(() => emptySurfaceSoilMesh());
@@ -129,6 +143,45 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
   );
 
   const detailOpen = iseModeEnabled && selectedTransaction != null;
+
+  const transactionsByBoundaryId = useMemo(() => {
+    const byBoundaryId: Record<string, MarketTransaction[]> = {};
+
+    for (const boundary of ISE_CHOMEI_BOUNDARIES.features) {
+      const matches = marketTransactions.filter((transaction) =>
+        boundaryMatchesTransaction(boundary.properties, transaction),
+      );
+      if (matches.length > 0) {
+        byBoundaryId[boundary.properties.boundaryId] = matches;
+      }
+    }
+
+    return byBoundaryId;
+  }, [marketTransactions]);
+
+  const chomeiBoundaryMap = useMemo<IseChomeiBoundaryFeatureCollection>(
+    () => ({
+      ...ISE_CHOMEI_BOUNDARIES,
+      features: ISE_CHOMEI_BOUNDARIES.features.map((feature) => ({
+        ...feature,
+        properties: {
+          ...feature.properties,
+          transactionCount:
+            transactionsByBoundaryId[feature.properties.boundaryId]?.length ??
+            0,
+        },
+      })),
+    }),
+    [transactionsByBoundaryId],
+  );
+
+  const selectedChomeiTransactions = useMemo(() => {
+    if (!selectedChomeiBoundary) return [];
+    return (
+      transactionsByBoundaryId[selectedChomeiBoundary.properties.boundaryId] ??
+      []
+    );
+  }, [selectedChomeiBoundary, transactionsByBoundaryId]);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -405,6 +458,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
     setSelectedSearchPlace(place);
     setSelectedTransaction(null);
     setSelectedMeshCellId(null);
+    setSelectedChomeiBoundary(null);
     setToolsOpen(false);
     mapRef.current?.flyTo({
       center: [place.lng, place.lat],
@@ -485,6 +539,24 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
   }
 
   function handleMapClick(event: MapClickEvent) {
+    const chomeiFeature = event.features?.find(
+      (feature) => feature.layer?.id === ISE_CHOMEI_BOUNDARY_FILL_LAYER_ID,
+    );
+
+    if (chomeiFeature?.properties) {
+      const properties =
+        chomeiFeature.properties as IseChomeiBoundaryProperties;
+      setSelectedChomeiBoundary({
+        properties,
+        lng: event.lngLat.lng,
+        lat: event.lngLat.lat,
+      });
+      setSelectedMeshCellId(null);
+      setSelectedTransaction(null);
+      setToolsOpen(false);
+      return;
+    }
+
     const meshFeature = event.features?.find(
       (feature) => feature.layer?.id === SURFACE_SOIL_MESH_FILL_LAYER_ID,
     );
@@ -493,11 +565,13 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
       const properties = meshFeature.properties as SurfaceSoilMeshCellProperties;
       setSelectedMeshCellId(properties.id);
       setSelectedTransaction(null);
+      setSelectedChomeiBoundary(null);
       setToolsOpen(false);
       return;
     }
 
     setSelectedMeshCellId(null);
+    setSelectedChomeiBoundary(null);
     closeDetail();
   }
 
@@ -528,7 +602,12 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
             refreshVisibleSurfaceSoilMesh(event.viewState.zoom);
           }}
           interactiveLayerIds={
-            surfaceSoilMeshVisible ? [SURFACE_SOIL_MESH_FILL_LAYER_ID] : []
+            [
+              ...(iseModeEnabled && chomeiBoundariesVisible
+                ? [ISE_CHOMEI_BOUNDARY_FILL_LAYER_ID]
+                : []),
+              ...(surfaceSoilMeshVisible ? [SURFACE_SOIL_MESH_FILL_LAYER_ID] : []),
+            ]
           }
         >
           <NavigationControl position="bottom-right" />
@@ -634,6 +713,71 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
             </Source>
           )}
 
+          {iseModeEnabled && chomeiBoundariesVisible && (
+            <Source
+              id="ise-chomei-boundaries"
+              type="geojson"
+              data={chomeiBoundaryMap}
+            >
+              <Layer
+                id={ISE_CHOMEI_BOUNDARY_FILL_LAYER_ID}
+                type="fill"
+                paint={{
+                  "fill-color": [
+                    "case",
+                    [">", ["get", "transactionCount"], 0],
+                    "#10b981",
+                    "#eab308",
+                  ],
+                  "fill-opacity": [
+                    "case",
+                    [
+                      "==",
+                      ["get", "boundaryId"],
+                      selectedChomeiBoundary?.properties.boundaryId ??
+                        "__none__",
+                    ],
+                    0.34,
+                    [">", ["get", "transactionCount"], 0],
+                    0.18,
+                    0.07,
+                  ],
+                }}
+              />
+              <Layer
+                id={ISE_CHOMEI_BOUNDARY_LINE_LAYER_ID}
+                type="line"
+                paint={{
+                  "line-color": [
+                    "case",
+                    [
+                      "==",
+                      ["get", "boundaryId"],
+                      selectedChomeiBoundary?.properties.boundaryId ??
+                        "__none__",
+                    ],
+                    "#064e3b",
+                    [">", ["get", "transactionCount"], 0],
+                    "#047857",
+                    "#a16207",
+                  ],
+                  "line-width": [
+                    "case",
+                    [
+                      "==",
+                      ["get", "boundaryId"],
+                      selectedChomeiBoundary?.properties.boundaryId ??
+                        "__none__",
+                    ],
+                    2.2,
+                    0.9,
+                  ],
+                  "line-opacity": 0.9,
+                }}
+              />
+            </Source>
+          )}
+
           {selectedSearchPlace && (
             <>
               <Marker
@@ -695,6 +839,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
                   e.originalEvent.stopPropagation();
                   setSelectedTransaction(representative);
                   setSelectedMeshCellId(null);
+                  setSelectedChomeiBoundary(null);
                   setToolsOpen(false);
                 }}
               >
@@ -745,6 +890,74 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
                 {selectedTransaction.tradePriceYen != null && (
                   <p className="text-emerald-700">
                     {selectedTransaction.tradePriceYen.toLocaleString()} 円
+                  </p>
+                )}
+              </div>
+            </Popup>
+          )}
+
+          {iseModeEnabled && selectedChomeiBoundary && (
+            <Popup
+              latitude={selectedChomeiBoundary.lat}
+              longitude={selectedChomeiBoundary.lng}
+              anchor="top"
+              closeOnClick={false}
+              onClose={() => setSelectedChomeiBoundary(null)}
+            >
+              <div className="w-60 text-sm">
+                <p className="font-semibold text-zinc-900">
+                  {selectedChomeiBoundary.properties.name}
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  町丁字境界（2020年国勢調査）
+                </p>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div>
+                    <dt className="text-zinc-400">取引</dt>
+                    <dd className="font-medium text-zinc-700">
+                      {selectedChomeiTransactions.length} 件
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-zinc-400">面積</dt>
+                    <dd className="font-medium text-zinc-700">
+                      {selectedChomeiBoundary.properties.areaSqm == null
+                        ? "-"
+                        : `${Math.round(
+                            selectedChomeiBoundary.properties.areaSqm,
+                          ).toLocaleString()}㎡`}
+                    </dd>
+                  </div>
+                </dl>
+                {selectedChomeiTransactions.length > 0 ? (
+                  <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto overscroll-contain">
+                    {selectedChomeiTransactions.slice(0, 5).map((transaction) => (
+                      <li key={transaction.id}>
+                        <button
+                          type="button"
+                          className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-left text-xs text-zinc-700 transition-colors hover:border-emerald-500 hover:bg-emerald-50"
+                          onClick={() => {
+                            setSelectedTransaction(transaction);
+                            setSelectedMeshCellId(null);
+                            setToolsOpen(false);
+                          }}
+                        >
+                          <span className="block truncate font-medium">
+                            {transaction.period ??
+                              `${transaction.year}年 Q${transaction.quarter}`}
+                          </span>
+                          <span className="block truncate text-zinc-500">
+                            {transaction.tradePriceYen == null
+                              ? "価格不明"
+                              : `${transaction.tradePriceYen.toLocaleString()} 円`}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                    この町名に一致する取引事例はありません。
                   </p>
                 )}
               </div>
@@ -909,6 +1122,14 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
                 setSurfaceSoilMeshVisible((v) => !v)
               }
               onFetchSurfaceSoilMesh={fetchVisibleSurfaceSoilMesh}
+              chomeiBoundariesVisible={chomeiBoundariesVisible}
+              chomeiBoundaryCount={ISE_CHOMEI_BOUNDARIES.features.length}
+              chomeiBoundaryTransactionCount={
+                Object.keys(transactionsByBoundaryId).length
+              }
+              onToggleChomeiBoundaries={() =>
+                setChomeiBoundariesVisible((v) => !v)
+              }
               highlightShujuuDistrict={highlightShujuuDistrict}
               onToggleShujuuDistrict={() =>
                 setHighlightShujuuDistrict((v) => !v)
@@ -943,6 +1164,7 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
                 setIseModeEnabled((enabled) => {
                   if (enabled) {
                     setSelectedTransaction(null);
+                    setSelectedChomeiBoundary(null);
                     setHighlightShujuuDistrict(false);
                     setHighlightShuudouDistrict(false);
                     setHighlightIsuzuDistrict(false);
