@@ -902,9 +902,10 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
               longitude={selectedChomeiBoundary.lng}
               anchor="top"
               closeOnClick={false}
+              maxWidth="18rem"
               onClose={() => setSelectedChomeiBoundary(null)}
             >
-              <div className="w-60 text-sm">
+              <div className="w-[min(16rem,calc(100vw-3rem))] min-w-0 text-sm">
                 <p className="font-semibold text-zinc-900">
                   {selectedChomeiBoundary.properties.name}
                 </p>
@@ -930,12 +931,12 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
                   </div>
                 </dl>
                 {selectedChomeiTransactions.length > 0 ? (
-                  <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto overscroll-contain">
+                  <ul className="mt-2 max-h-44 min-w-0 space-y-1 overflow-y-auto overscroll-contain pr-1">
                     {selectedChomeiTransactions.slice(0, 5).map((transaction) => (
-                      <li key={transaction.id}>
+                      <li key={transaction.id} className="min-w-0">
                         <button
                           type="button"
-                          className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-left text-xs text-zinc-700 transition-colors hover:border-emerald-500 hover:bg-emerald-50"
+                          className="block w-full min-w-0 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-left text-xs text-zinc-700 transition-colors hover:border-emerald-500 hover:bg-emerald-50"
                           onClick={() => {
                             setSelectedTransaction(transaction);
                             setSelectedMeshCellId(null);
@@ -1201,10 +1202,6 @@ export function LandMap({ mapboxToken, marketTransactions }: Props) {
 
       <MarketTransactionDetailPanel
         transaction={iseModeEnabled ? selectedTransaction : null}
-        locationTransactions={
-          iseModeEnabled ? selectedLocationGroup?.transactions ?? [] : []
-        }
-        onSelectTransaction={setSelectedTransaction}
         onClose={closeDetail}
       />
     </div>
